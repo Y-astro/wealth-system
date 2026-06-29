@@ -1,0 +1,13 @@
+# Global OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Project-wide logs
+*.log
+logs/
+
+# Development cache
+.cache/
+.temp/
+.tmp/

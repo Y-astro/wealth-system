@@ -1,0 +1,6 @@
+{
+  "rust-analyzer.checkOnSave.command": "clippy",
+  "rust-analyzer.server.extraEnv": {
+    "CARGO_TARGET_DIR": "target/analyzer"
+  }
+}

@@ -1,0 +1,12 @@
+DROP INDEX IF EXISTS ix_sync_entity_metadata_last_seq;
+DROP INDEX IF EXISTS ix_sync_outbox_status_retry_created;
+DROP INDEX IF EXISTS ix_sync_applied_events_seq;
+DROP TABLE IF EXISTS sync_applied_events;
+DROP TABLE IF EXISTS sync_table_state;
+DROP TABLE IF EXISTS sync_engine_state;
+DROP TABLE IF EXISTS sync_device_config;
+DROP TABLE IF EXISTS sync_entity_metadata;
+DROP INDEX IF EXISTS ix_sync_outbox_entity;
+DROP INDEX IF EXISTS ix_sync_outbox_sent_created;
+DROP TABLE IF EXISTS sync_outbox;
+DROP TABLE IF EXISTS sync_cursor;

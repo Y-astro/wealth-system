@@ -1,0 +1,24 @@
+[package]
+name = "wealthfolio-connect"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+wealthfolio-core = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+uuid = { workspace = true }
+rust_decimal = { workspace = true }
+log = { workspace = true }
+
+# HTTP client (for Connect API)
+reqwest = { workspace = true }
+base64 = "0.22"
+
+[features]
+default = ["broker"]
+broker = []

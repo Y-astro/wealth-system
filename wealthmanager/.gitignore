@@ -1,0 +1,15 @@
+# Exclude sensitive bank statement files
+inputs/
+
+# Exclude generated/cached/intermediate files
+ai_input_*.txt
+ai_output_*.json
+
+# Exclude logs
+*.log
+
+# Exclude python environment and cache
+__pycache__/
+*.pyc
+.venv/
+venv/

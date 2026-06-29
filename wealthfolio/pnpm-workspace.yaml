@@ -1,0 +1,10 @@
+packages:
+  - "apps/frontend"
+  - "packages/*"
+  - "addons/*"
+
+allowBuilds:
+  "@swc/core": true
+  esbuild: true
+  msw: true
+  "@tailwindcss/oxide": true
