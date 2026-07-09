@@ -3,6 +3,7 @@
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 /// A single point in net worth history.
 ///
@@ -107,6 +108,18 @@ pub struct NetWorthResponse {
     pub oldest_valuation_date: Option<NaiveDate>,
     /// Assets with valuations older than 90 days
     pub stale_assets: Vec<StaleAssetInfo>,
+
+    /// Liquid assets total (immediately accessible without penalty)
+    pub liquid_assets: Decimal,
+    /// Illiquid assets total (locked, hard to sell quickly)
+    pub illiquid_assets: Decimal,
+
+    /// Safe risk bucket (FD, PPF, EPF, govt bonds, debt MF)
+    pub safe_assets: Decimal,
+    /// Moderate risk bucket (balanced MF, corporate bonds, NPS-C, rental RE)
+    pub moderate_assets: Decimal,
+    /// Aggressive risk bucket (equity MF, stocks, crypto, NPS-E, private equity)
+    pub aggressive_assets: Decimal,
 }
 
 impl NetWorthResponse {
@@ -120,6 +133,11 @@ impl NetWorthResponse {
             currency,
             oldest_valuation_date: None,
             stale_assets: Vec::new(),
+            liquid_assets: Decimal::ZERO,
+            illiquid_assets: Decimal::ZERO,
+            safe_assets: Decimal::ZERO,
+            moderate_assets: Decimal::ZERO,
+            aggressive_assets: Decimal::ZERO,
         }
     }
 }
@@ -159,3 +177,23 @@ pub enum AssetCategory {
     /// Cash holdings
     Cash,
 }
+
+/// Liquidity classification for an asset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[ts(export)]
+pub enum LiquidityClass {
+    Liquid,
+    Illiquid,
+}
+
+/// Risk classification for an asset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[ts(export)]
+pub enum RiskClass {
+    Safe,
+    Moderate,
+    Aggressive,
+}
+

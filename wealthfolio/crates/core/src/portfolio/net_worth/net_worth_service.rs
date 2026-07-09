@@ -496,6 +496,11 @@ impl NetWorthServiceTrait for NetWorthService {
             currency: base_currency,
             oldest_valuation_date,
             stale_assets,
+            liquid_assets: Decimal::ZERO,
+            illiquid_assets: Decimal::ZERO,
+            safe_assets: Decimal::ZERO,
+            moderate_assets: Decimal::ZERO,
+            aggressive_assets: Decimal::ZERO,
         })
     }
 
