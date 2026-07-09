@@ -6,6 +6,7 @@ import urllib.request
 import urllib.error
 import re
 import logging
+import time
 
 # Setup path resolution relative to script
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,20 +25,64 @@ logging.basicConfig(
 INPUT_DIR = os.path.join(SCRIPT_DIR, "inputs")
 OUTPUT_DIR = SCRIPT_DIR
 INGEST_SCRIPT = os.path.join(SCRIPT_DIR, "ingest.py")
-LM_STUDIO_URL = "http://127.0.0.1:1234/v1/chat/completions"
-WEALTHFOLIO_URL = "http://127.0.0.1:8080/api/v1/activities/import"
-ACCOUNTS_URL = "http://127.0.0.1:8080/api/v1/accounts"
+
+# Environment configurations
+LM_STUDIO_BASE = os.environ.get("LM_STUDIO_BASE", "http://127.0.0.1:1234")
+LM_STUDIO_URL = f"{LM_STUDIO_BASE}/v1/chat/completions"
+LM_STUDIO_MODELS_URL = f"{LM_STUDIO_BASE}/v1/models"
+
+WEALTHFOLIO_BASE = os.environ.get("WEALTHFOLIO_BASE", "http://127.0.0.1:8080")
+WEALTHFOLIO_URL = f"{WEALTHFOLIO_BASE}/api/v1/activities/import"
+ACCOUNTS_URL = f"{WEALTHFOLIO_BASE}/api/v1/accounts"
+
+def call_api_with_retry(url, data=None, headers=None, method='GET', timeout=10, max_retries=3):
+    headers = headers or {}
+    backoff = 2
+    for attempt in range(max_retries):
+        try:
+            req = urllib.request.Request(url, data=data, headers=headers, method=method)
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                return response.read().decode('utf-8')
+        except urllib.error.HTTPError as e:
+            error_content = e.read().decode('utf-8')
+            logging.warning(f"HTTP Error {e.code} on attempt {attempt+1}/{max_retries} for URL {url}. Response: {error_content}")
+            if attempt == max_retries - 1:
+                raise e
+        except Exception as e:
+            logging.warning(f"Network error {str(e)} on attempt {attempt+1}/{max_retries} for URL {url}.")
+            if attempt == max_retries - 1:
+                raise e
+        time.sleep(backoff)
+        backoff *= 2
+
+def get_lm_studio_model():
+    try:
+        logging.info("Querying active models from LM Studio...")
+        res_body = call_api_with_retry(LM_STUDIO_MODELS_URL, timeout=5, max_retries=2)
+        res_json = json.loads(res_body)
+        models = res_json.get('data', [])
+        for m in models:
+            model_id = m.get('id', '')
+            # Filter out models containing 'embed' or 'rerank'
+            if 'embed' not in model_id.lower() and 'rerank' not in model_id.lower():
+                logging.info(f"Dynamically selected model: '{model_id}'")
+                return model_id
+    except Exception as e:
+        logging.warning(f"Failed to dynamically fetch models from LM Studio: {e}")
+    
+    fallback = os.environ.get("LM_STUDIO_MODEL", "qwen")
+    logging.info(f"Using fallback model: '{fallback}'")
+    return fallback
 
 def get_accounts():
     try:
-        req = urllib.request.Request(ACCOUNTS_URL)
-        with urllib.request.urlopen(req, timeout=10) as response:
-            return json.loads(response.read().decode('utf-8'))
+        res_body = call_api_with_retry(ACCOUNTS_URL, timeout=10, max_retries=3)
+        return json.loads(res_body)
     except Exception as e:
         logging.error(f"Failed to fetch accounts: {str(e)}")
         return []
 
-def process_file(file_path):
+def process_file(file_path, active_model):
     file_name = os.path.basename(file_path)
     logging.info(f"--- Starting processing for {file_name} ---")
     
@@ -110,7 +155,7 @@ def process_file(file_path):
     )
 
     payload = {
-        "model": "qwen",
+        "model": active_model,
         "messages": [
             {"role": "system", "content": prompt},
             {"role": "user", "content": extracted_text}
@@ -118,38 +163,37 @@ def process_file(file_path):
         "temperature": 0.0
     }
 
-    logging.info(f"Sending text to AI model... (5-minute timeout enabled)")
+    logging.info(f"Sending text to AI model '{active_model}'... (5-minute timeout enabled)")
     try:
-        req = urllib.request.Request(
-            LM_STUDIO_URL, 
-            data=json.dumps(payload).encode('utf-8'), 
-            headers={'Content-Type': 'application/json'}
+        res_body = call_api_with_retry(
+            LM_STUDIO_URL,
+            data=json.dumps(payload).encode('utf-8'),
+            headers={'Content-Type': 'application/json'},
+            method='POST',
+            timeout=300,
+            max_retries=3
         )
-        # 5 minute timer
-        with urllib.request.urlopen(req, timeout=300) as response:
-            res_body = response.read().decode('utf-8')
-            res_json = json.loads(res_body)
-            content = res_json['choices'][0]['message']['content']
-            logging.info(f"AI Response received ({len(content)} chars).")
+        res_json = json.loads(res_body)
+        content = res_json['choices'][0]['message']['content']
+        logging.info(f"AI Response received ({len(content)} chars).")
+        
+        # Extract JSON reliably
+        json_match = re.search(r'(\[.*\]|\{.*\})', content, re.DOTALL)
+        if json_match:
+            final_json_str = json_match.group(1)
+        else:
+            final_json_str = content.strip()
+
+        # Remove potential markdown code blocks
+        final_json_str = re.sub(r'^```json\s*', '', final_json_str)
+        final_json_str = re.sub(r'\s*```$', '', final_json_str)
+
+        json_data = json.loads(final_json_str)
+        if isinstance(json_data, list):
+            json_data = {"activities": json_data}
+        elif "activities" not in json_data:
+            json_data = {"activities": [json_data]}
             
-            # Extract JSON reliably
-            # Try to find a list or an object
-            json_match = re.search(r'(\[.*\]|\{.*\})', content, re.DOTALL)
-            if json_match:
-                final_json_str = json_match.group(1)
-            else:
-                final_json_str = content.strip()
-
-            # Remove potential markdown code blocks
-            final_json_str = re.sub(r'^```json\s*', '', final_json_str)
-            final_json_str = re.sub(r'\s*```$', '', final_json_str)
-
-            json_data = json.loads(final_json_str)
-            if isinstance(json_data, list):
-                json_data = {"activities": json_data}
-            elif "activities" not in json_data:
-                json_data = {"activities": [json_data]}
-                
     except urllib.error.HTTPError as e:
         error_msg = e.read().decode('utf-8')
         logging.error(f"LM Studio API returned error {e.code}: {error_msg}")
@@ -188,15 +232,17 @@ def process_file(file_path):
         }
         target_account_id = None
         try:
-            req_acc = urllib.request.Request(
+            res_acc = call_api_with_retry(
                 ACCOUNTS_URL,
                 data=json.dumps(payload_acc).encode('utf-8'),
-                headers={'Content-Type': 'application/json'}
+                headers={'Content-Type': 'application/json'},
+                method='POST',
+                timeout=10,
+                max_retries=3
             )
-            with urllib.request.urlopen(req_acc, timeout=10) as response_acc:
-                acc_res = json.loads(response_acc.read().decode('utf-8'))
-                target_account_id = acc_res['id']
-                logging.info(f"Created new account '{account_name}' with ID: {target_account_id}")
+            acc_res = json.loads(res_acc)
+            target_account_id = acc_res['id']
+            logging.info(f"Created new account '{account_name}' with ID: {target_account_id}")
         except Exception as e:
             logging.error(f"Failed to create account for {file_name}: {str(e)}")
             target_account_id = accounts[0]['id'] if accounts else "0e64c3da-e5f5-4ef9-a5f3-84ebcb6eaa8a"
@@ -248,14 +294,26 @@ def process_file(file_path):
 
         payload_wf = {"activities": activities}
         
-        req_wf = urllib.request.Request(
-            WEALTHFOLIO_URL, 
-            data=json.dumps(payload_wf).encode('utf-8'), 
-            headers={'Content-Type': 'application/json'}
+        res_wf = call_api_with_retry(
+            WEALTHFOLIO_URL,
+            data=json.dumps(payload_wf).encode('utf-8'),
+            headers={'Content-Type': 'application/json'},
+            method='POST',
+            timeout=30,
+            max_retries=3
         )
-        with urllib.request.urlopen(req_wf, timeout=30) as response_wf:
-            wf_res = response_wf.read().decode('utf-8')
-            logging.info(f"Wealthfolio ingestion successful: {wf_res}")
+        wf_res = json.loads(res_wf)
+        
+        summary = wf_res.get('summary', {})
+        imported = summary.get('imported', 0)
+        skipped = summary.get('skipped', 0)
+        duplicates = summary.get('duplicates', 0)
+        logging.info(f"Wealthfolio ingestion summary: Imported={imported}, Skipped={skipped} (Duplicates={duplicates})")
+        if summary.get('success'):
+            logging.info(f"Wealthfolio ingestion successful.")
+        else:
+            logging.error(f"Wealthfolio ingestion failed with error: {summary.get('errorMessage')}")
+            
     except urllib.error.HTTPError as e:
         error_msg = e.read().decode('utf-8')
         logging.error(f"Wealthfolio API returned error {e.code}: {error_msg}")
@@ -276,10 +334,10 @@ def main():
         logging.info("No files found to process.")
         return
 
+    active_model = get_lm_studio_model()
     logging.info(f"Found {len(files)} files to process. Starting sequential processing...")
-    # Send files one by one
     for file in files:
-        process_file(os.path.join(INPUT_DIR, file))
+        process_file(os.path.join(INPUT_DIR, file), active_model)
 
 if __name__ == "__main__":
     main()

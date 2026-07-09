@@ -28,8 +28,8 @@ use super::alternative_assets_traits::{
 use super::{AssetKind, AssetRepositoryTrait, NewAsset, QuoteMode};
 use crate::assets::assets_constants::{
     CASH_REQUIRED_FIELDS, CREDIT_CARD_REQUIRED_FIELDS, EPF_REQUIRED_FIELDS, FD_REQUIRED_FIELDS,
-    LOAN_REQUIRED_FIELDS, NPS_REQUIRED_FIELDS, PPF_REQUIRED_FIELDS, RD_REQUIRED_FIELDS,
-    SGB_REQUIRED_FIELDS,
+    INSURANCE_REQUIRED_FIELDS, LOAN_REQUIRED_FIELDS, NPS_REQUIRED_FIELDS, PPF_REQUIRED_FIELDS,
+    RD_REQUIRED_FIELDS, SGB_REQUIRED_FIELDS,
 };
 use crate::assets::assets_model::InstrumentPreset;
 use crate::errors::{Error, Result, ValidationError};
@@ -223,7 +223,7 @@ pub fn validate_instrument_preset_metadata(metadata: &Option<Value>) -> Result<(
         InstrumentPreset::InsuranceTerm
         | InstrumentPreset::InsuranceEndowment
         | InstrumentPreset::InsuranceUlip
-        | InstrumentPreset::InsuranceHealth => &["instrument_preset", "policy_number", "insurer"],
+        | InstrumentPreset::InsuranceHealth => INSURANCE_REQUIRED_FIELDS,
         InstrumentPreset::HomeLoan
         | InstrumentPreset::CarLoan
         | InstrumentPreset::PersonalLoan => LOAN_REQUIRED_FIELDS,
@@ -767,7 +767,8 @@ mod preset_validation_tests {
         let result = validate_instrument_preset_metadata(&meta);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("principal") || err_msg.contains("Missing"));
+        assert!(err_msg.contains("Missing"));
+        assert!(err_msg.contains("principal"));
     }
 
     #[test]
@@ -797,6 +798,45 @@ mod preset_validation_tests {
             "tier": "I"
         }));
         assert!(validate_instrument_preset_metadata(&meta).is_ok());
+    }
+
+    #[test]
+    fn test_valid_insurance_metadata() {
+        let meta = Some(json!({
+            "instrument_preset": "insurance_term",
+            "policy_number": "LIC-12345",
+            "insurer": "LIC"
+        }));
+        assert!(validate_instrument_preset_metadata(&meta).is_ok());
+    }
+
+    #[test]
+    fn test_insurance_missing_fields() {
+        let meta = Some(json!({
+            "instrument_preset": "insurance_ulip"
+            // missing: policy_number, insurer
+        }));
+        let result = validate_instrument_preset_metadata(&meta);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("policy_number"));
+        assert!(msg.contains("insurer"));
+    }
+
+    #[test]
+    fn test_null_field_treated_as_missing() {
+        let meta = Some(json!({
+            "instrument_preset": "fixed_deposit",
+            "bank_name": "SBI",
+            "principal": null,  // null value
+            "interest_rate_pct": 7.1,
+            "start_date": "2025-01-15",
+            "maturity_date": "2027-01-15"
+        }));
+        let result = validate_instrument_preset_metadata(&meta);
+        assert!(result.is_err(), "null field should be treated as missing");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("principal"));
     }
 }
 

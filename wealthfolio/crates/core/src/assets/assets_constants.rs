@@ -134,3 +134,31 @@ pub const SGB_OPTIONAL_FIELDS: &[&str] = &[
     "quantity_grams",
     "purchase_date",
 ];
+
+/// Required metadata fields for Insurance policies (all types).
+/// Term and Health insurance contribute ₹0 to net worth (pure protection).
+/// Endowment/Whole Life and ULIP contribute surrender value / fund value.
+pub const INSURANCE_REQUIRED_FIELDS: &[&str] = &[
+    "instrument_preset",
+    "policy_number",
+    "insurer",
+];
+
+pub const INSURANCE_OPTIONAL_FIELDS: &[&str] = &[
+    "sum_assured",
+    "premium_annual",
+    "premium_due_date",
+    "policy_term_years",
+    "rider_details",      // For Term
+    "surrender_value",    // For Endowment/Whole Life
+    "maturity_value",     // For Endowment
+    "bonus_declared",     // For Endowment
+    "fund_choices",       // For ULIP
+    "nav",                // For ULIP
+    "units_held",         // For ULIP
+    "fund_value",         // For ULIP
+    "sum_insured",        // For Health
+    "family_members",     // For Health
+    "renewal_date",       // For Health
+];
+

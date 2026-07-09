@@ -7,6 +7,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use wealthfolio_core::accounts::AccountServiceTrait;
 use wealthfolio_core::activities::{
     import_type, Activity, ActivityBulkMutationRequest, ActivityBulkMutationResult, ActivityImport,
     ActivitySearchResponse, ActivityUpdate, ImportActivitiesResult, ImportAssetCandidate,
@@ -367,6 +368,358 @@ async fn parse_csv_endpoint(
     Ok(Json(result))
 }
 
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct LlmActivity {
+    date: String,
+    activity_type: String,
+    symbol: String,
+    quantity: Option<rust_decimal::Decimal>,
+    unit_price: Option<rust_decimal::Decimal>,
+    currency: String,
+    comment: Option<String>,
+}
+
+#[derive(serde::Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct LlmOutput {
+    closing_balance: Option<rust_decimal::Decimal>,
+    closing_balance_date: Option<String>,
+    activities: Vec<LlmActivity>,
+}
+
+async fn import_statement_endpoint(
+    State(state): State<Arc<AppState>>,
+    mut multipart: Multipart,
+) -> ApiResult<Json<Vec<ActivityImport>>> {
+    let mut file_content: Option<Vec<u8>> = None;
+    let mut filename = "statement.pdf".to_string();
+    let mut account_id: Option<String> = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        crate::error::ApiError::BadRequest(format!("Failed to read multipart field: {}", e))
+    })? {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "file" => {
+                filename = field.file_name().unwrap_or("statement.pdf").to_string();
+                file_content = Some(
+                    field
+                        .bytes()
+                        .await
+                        .map_err(|e| {
+                            crate::error::ApiError::BadRequest(format!(
+                                "Failed to read file content: {}",
+                                e
+                            ))
+                        })?
+                        .to_vec(),
+                );
+            }
+            "accountId" => {
+                let bytes = field.bytes().await.map_err(|e| {
+                    crate::error::ApiError::BadRequest(format!("Failed to read accountId field: {}", e))
+                })?;
+                let val = String::from_utf8(bytes.to_vec())
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                if !val.is_empty() {
+                    account_id = Some(val);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let content = file_content.ok_or_else(|| {
+        crate::error::ApiError::BadRequest("Missing file in multipart request".to_string())
+    })?;
+
+    // 1. Save file to temporary path preserving original extension
+    let extension = std::path::Path::new(&filename)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("pdf");
+    
+    let temp_dir = std::env::temp_dir();
+    let temp_filename = format!("statement_{}.{}", uuid::Uuid::new_v4(), extension);
+    let temp_filepath = temp_dir.join(temp_filename);
+    
+    std::fs::write(&temp_filepath, &content).map_err(|e| {
+        crate::error::ApiError::Internal(format!("Failed to write temporary file: {}", e))
+    })?;
+
+    // 2. Call python script ingest.py to extract text
+    let output = std::process::Command::new("python3")
+        .arg("/home/astro/wealth-system/wealthmanager/ingest.py")
+        .arg(&temp_filepath)
+        .output();
+        
+    // Clean up temporary file immediately
+    let _ = std::fs::remove_file(&temp_filepath);
+
+    let output = output.map_err(|e| {
+        crate::error::ApiError::Internal(format!("Failed to execute ingest.py: {}", e))
+    })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        return Err(crate::error::ApiError::Internal(format!(
+            "ingest.py failed: {}",
+            stderr
+        )));
+    }
+
+    let extracted_text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if extracted_text.is_empty() {
+        return Err(crate::error::ApiError::BadRequest(
+            "No text could be extracted from the statement file.".to_string(),
+        ));
+    }
+
+    // 3. Resolve active accounts context
+    let accounts = state.account_service.get_all_accounts()?;
+    let accounts_context = accounts
+        .iter()
+        .map(|a| format!("- Name: {}, ID: {}, Currency: {}", a.name, a.id, a.currency))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // 4. Query LM Studio for model dynamically
+    let lm_studio_base = std::env::var("LM_STUDIO_BASE").unwrap_or_else(|_| "http://127.0.0.1:1234".to_string());
+    
+    // Resolve model name
+    let client = reqwest::Client::new();
+    let mut active_model = "qwen".to_string();
+    
+    if let Ok(res) = client.get(format!("{}/v1/models", lm_studio_base)).send().await {
+        if let Ok(json_res) = res.json::<serde_json::Value>().await {
+            if let Some(models) = json_res.get("data").and_then(|v| v.as_array()) {
+                for m in models {
+                    if let Some(model_id) = m.get("id").and_then(|v| v.as_str()) {
+                        let lower = model_id.to_lowercase();
+                        if !lower.contains("embed") && !lower.contains("rerank") {
+                            active_model = model_id.to_string();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 5. Construct Chat Prompt
+    let prompt = format!(
+        "You are a financial data extraction expert. Your task is to extract all transactions from the provided bank statement text \
+        into a strict JSON format compatible with Wealthfolio.\n\n\
+        ### Available Wealthfolio Accounts:\n{}\n\n\
+        ### CRITICAL INSTRUCTIONS:\n\
+        1. **CSV/Tabular Structure**: Pay close attention to the column headers (e.g., Date, Narration, Withdrawal, Deposit, Balance).\n   \
+           - **NEVER** use the 'Balance' column as the transaction amount.\n   \
+           - The transaction amount is in either the 'Withdrawal/Debit' or 'Deposit/Credit' column.\n\
+        2. **Mandatory Fields for Activities**:\n   \
+           - `date`: ISO format (YYYY-MM-DD).\n   \
+           - `activityType`: MUST be either \"DEPOSIT\" or \"WITHDRAWAL\" (for bank statements).\n   \
+           - `symbol`: Use the currency code (e.g., \"USD\", \"INR\").\n   \
+           - `quantity`: Always use 1.\n   \
+           - `unitPrice`: The absolute amount of the transaction.\n   \
+           - `currency`: The currency code.\n   \
+           - `comment`: The transaction narration.\n   \
+           - `accountId`: Choose the best matching Account ID from the list above.\n   \
+           - `isDraft`: false.\n   \
+           - `isValid`: true.\n\
+        3. **Closing Balance**: You MUST extract the final closing balance on the statement and include it as `closingBalance`. Also provide the statement's ending date as `closingBalanceDate`.\n\n\
+        ### EXPECTED JSON SCHEMA:\n\
+        {{\n  \
+          \"closingBalance\": 12345.67,\n  \
+          \"closingBalanceDate\": \"YYYY-MM-DD\",\n  \
+          \"activities\": [\n    \
+            {{\n      \
+              \"date\": \"YYYY-MM-DD\",\n      \
+              \"activityType\": \"DEPOSIT|WITHDRAWAL\",\n      \
+              \"symbol\": \"USD\",\n      \
+              \"quantity\": 1,\n      \
+              \"unitPrice\": 123.45,\n      \
+              \"currency\": \"USD\",\n      \
+              \"comment\": \"Narration\",\n      \
+              \"accountId\": \"UUID\",\n      \
+              \"isDraft\": false,\n      \
+              \"isValid\": true\n    \
+            }}\n  \
+          ]\n\
+        }}\n\n\
+        Return ONLY the JSON object. No preamble.",
+        accounts_context
+    );
+
+    let payload = serde_json::json!({
+        "model": active_model,
+        "messages": [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": extracted_text}
+        ],
+        "temperature": 0.0
+    });
+
+    let llm_res = client
+        .post(format!("{}/v1/chat/completions", lm_studio_base))
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| {
+            crate::error::ApiError::Internal(format!("Failed to connect to LM Studio: {}", e))
+        })?;
+
+    if !llm_res.status().is_success() {
+        let err_status = llm_res.status();
+        let err_text = llm_res.text().await.unwrap_or_default();
+        return Err(crate::error::ApiError::Internal(format!(
+            "LM Studio returned status {}: {}",
+            err_status, err_text
+        )));
+    }
+
+    let llm_json = llm_res
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| {
+            crate::error::ApiError::Internal(format!("Failed to parse LM Studio response JSON: {}", e))
+        })?;
+
+    let content = llm_json
+        .get("choices")
+        .and_then(|c| c.as_array())
+        .and_then(|a| a.first())
+        .and_then(|m| m.get("message"))
+        .and_then(|msg| msg.get("content"))
+        .and_then(|c| c.as_str())
+        .ok_or_else(|| {
+            crate::error::ApiError::Internal("Invalid response structure from LM Studio".to_string())
+        })?
+        .trim();
+
+    // Clean JSON content by slicing block boundaries
+    let clean_json = if let Some(start_idx) = content.find('{').or_else(|| content.find('[')) {
+        if let Some(end_idx) = content.rfind('}').or_else(|| content.rfind(']')) {
+            if end_idx >= start_idx {
+                content[start_idx..=end_idx].to_string()
+            } else {
+                content.to_string()
+            }
+        } else {
+            content.to_string()
+        }
+    } else {
+        content.to_string()
+    };
+
+    let llm_output: LlmOutput = serde_json::from_str(&clean_json).map_err(|e| {
+        crate::error::ApiError::Internal(format!("Failed to parse AI output into strict schema: {}. Raw output: {}", e, content))
+    })?;
+
+    // 6. Map parsed activities to ActivityImport structure
+    let target_account_id = account_id.unwrap_or_else(|| {
+        accounts
+            .first()
+            .map(|a| a.id.clone())
+            .unwrap_or_else(|| "0e64c3da-e5f5-4ef9-a5f3-84ebcb6eaa8a".to_string())
+    });
+
+    let mut import_activities = Vec::new();
+    let mut net_change = rust_decimal::Decimal::ZERO;
+
+    for act in llm_output.activities {
+        let amount_val = act.unit_price.unwrap_or(rust_decimal::Decimal::ZERO);
+        if act.activity_type == "DEPOSIT" {
+            net_change += amount_val;
+        } else {
+            net_change -= amount_val;
+        }
+
+        import_activities.push(ActivityImport {
+            id: None,
+            date: act.date,
+            symbol: act.symbol,
+            activity_type: act.activity_type,
+            quantity: act.quantity.or(Some(rust_decimal::Decimal::ONE)),
+            unit_price: act.unit_price,
+            currency: act.currency,
+            fee: Some(rust_decimal::Decimal::ZERO),
+            amount: act.unit_price,
+            comment: act.comment,
+            account_id: Some(target_account_id.clone()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: true,
+            is_valid: true,
+            line_number: None,
+            fx_rate: None,
+            subtype: None,
+            force_import: false,
+            asset_id: None,
+            isin: None,
+        });
+    }
+
+    // 7. Inject Opening Balance transaction if closingBalance is provided
+    if let Some(closing_balance) = llm_output.closing_balance {
+        let opening_balance = closing_balance - net_change;
+        let earliest_date = import_activities
+            .iter()
+            .map(|a| a.date.as_str())
+            .min()
+            .unwrap_or("2000-01-01")
+            .to_string();
+
+        import_activities.insert(0, ActivityImport {
+            id: None,
+            date: earliest_date,
+            symbol: "INR".to_string(),
+            activity_type: if opening_balance >= rust_decimal::Decimal::ZERO {
+                "DEPOSIT".to_string()
+            } else {
+                "WITHDRAWAL".to_string()
+            },
+            quantity: Some(rust_decimal::Decimal::ONE),
+            unit_price: Some(opening_balance.abs()),
+            currency: "INR".to_string(),
+            fee: Some(rust_decimal::Decimal::ZERO),
+            amount: Some(opening_balance.abs()),
+            comment: Some("Opening Balance".to_string()),
+            account_id: Some(target_account_id.clone()),
+            account_name: None,
+            symbol_name: None,
+            exchange_mic: None,
+            quote_ccy: None,
+            instrument_type: None,
+            quote_mode: None,
+            errors: None,
+            warnings: None,
+            duplicate_of_id: None,
+            duplicate_of_line_number: None,
+            is_draft: true,
+            is_valid: true,
+            line_number: None,
+            fx_rate: None,
+            subtype: None,
+            force_import: false,
+            asset_id: None,
+            isin: None,
+        });
+    }
+
+    Ok(Json(import_activities))
+}
+
 pub fn router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/activities/search", post(search_activities))
@@ -380,6 +733,7 @@ pub fn router() -> Router<Arc<AppState>> {
         )
         .route("/activities/import", post(import_activities))
         .route("/activities/import/parse", post(parse_csv_endpoint))
+        .route("/activities/import/statement", post(import_statement_endpoint))
         .route(
             "/activities/import/mapping",
             get(get_account_import_mapping).post(save_account_import_mapping),

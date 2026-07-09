@@ -194,6 +194,24 @@ diesel::table! {
 }
 
 diesel::table! {
+    net_worth_snapshots (id) {
+        id -> Text,
+        snapshot_date -> Date,
+        currency -> Text,
+        total_assets -> Numeric,
+        total_liabilities -> Numeric,
+        net_worth -> Numeric,
+        liquid_assets -> Numeric,
+        illiquid_assets -> Numeric,
+        safe_assets -> Numeric,
+        moderate_assets -> Numeric,
+        aggressive_assets -> Numeric,
+        component_breakdown_json -> Nullable<Text>,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     daily_account_valuation (id) {
         id -> Text,
         account_id -> Text,
@@ -488,6 +506,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     import_templates,
     import_runs,
     market_data_providers,
+    net_worth_snapshots,
     platforms,
     quote_sync_state,
     quotes,

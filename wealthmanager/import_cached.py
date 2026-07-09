@@ -13,8 +13,10 @@ logging.basicConfig(
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-WEALTHFOLIO_URL = "http://127.0.0.1:8080/api/v1/activities/import"
-ACCOUNTS_URL = "http://127.0.0.1:8080/api/v1/accounts"
+
+WEALTHFOLIO_BASE = os.environ.get("WEALTHFOLIO_BASE", "http://127.0.0.1:8080")
+WEALTHFOLIO_URL = f"{WEALTHFOLIO_BASE}/api/v1/activities/import"
+ACCOUNTS_URL = f"{WEALTHFOLIO_BASE}/api/v1/accounts"
 
 def get_accounts():
     try:
