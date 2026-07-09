@@ -5,10 +5,12 @@
 
 mod net_worth_model;
 mod net_worth_service;
+mod net_worth_snapshot_service;
 mod net_worth_traits;
 
 pub use net_worth_model::*;
 pub use net_worth_service::*;
+pub use net_worth_snapshot_service::*;
 pub use net_worth_traits::*;
 
 #[cfg(test)]
