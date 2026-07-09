@@ -308,6 +308,91 @@ impl AssetKind {
     }
 }
 
+/// Classification hint stored in asset metadata (`instrument_preset` field).
+///
+/// This is NOT a schema-level change — it's a string tag stored in the existing
+/// `attributes` JSON column. It tells the UI and validation logic which
+/// Indian/alternative financial instrument this `Other` asset represents.
+///
+/// Stored in metadata as: `"instrument_preset": "fixed_deposit"` (snake_case string)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum InstrumentPreset {
+    FixedDeposit,
+    RecurringDeposit,
+    Ppf,
+    Epf,
+    Nps,
+    InsuranceTerm,
+    InsuranceEndowment,
+    InsuranceUlip,
+    InsuranceHealth,
+    HomeLoan,
+    CarLoan,
+    PersonalLoan,
+    CreditCard,
+    CashInHand,
+    SovereignGoldBond,
+}
+
+impl InstrumentPreset {
+    /// The metadata key used to identify instrument preset in JSON.
+    pub const METADATA_KEY: &'static str = "instrument_preset";
+
+    /// Returns the AssetKind that should be used for this preset.
+    pub fn expected_asset_kind(&self) -> AssetKind {
+        match self {
+            InstrumentPreset::FixedDeposit
+            | InstrumentPreset::RecurringDeposit
+            | InstrumentPreset::Ppf
+            | InstrumentPreset::Epf
+            | InstrumentPreset::Nps
+            | InstrumentPreset::InsuranceTerm
+            | InstrumentPreset::InsuranceEndowment
+            | InstrumentPreset::InsuranceUlip
+            | InstrumentPreset::InsuranceHealth
+            | InstrumentPreset::CashInHand => AssetKind::Other,
+            InstrumentPreset::HomeLoan
+            | InstrumentPreset::CarLoan
+            | InstrumentPreset::PersonalLoan
+            | InstrumentPreset::CreditCard => AssetKind::Liability,
+            InstrumentPreset::SovereignGoldBond => AssetKind::Investment,
+        }
+    }
+
+    /// Returns true if this preset represents a liquid asset.
+    pub fn is_liquid(&self) -> bool {
+        matches!(
+            self,
+            InstrumentPreset::CashInHand
+                | InstrumentPreset::RecurringDeposit
+                | InstrumentPreset::Nps // Tier II is liquid; caller must check tier
+        )
+    }
+
+    /// Returns a human-readable display name.
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            InstrumentPreset::FixedDeposit => "Fixed Deposit",
+            InstrumentPreset::RecurringDeposit => "Recurring Deposit",
+            InstrumentPreset::Ppf => "Public Provident Fund (PPF)",
+            InstrumentPreset::Epf => "Employee Provident Fund (EPF)",
+            InstrumentPreset::Nps => "National Pension System (NPS)",
+            InstrumentPreset::InsuranceTerm => "Term Life Insurance",
+            InstrumentPreset::InsuranceEndowment => "Endowment / Whole Life Insurance",
+            InstrumentPreset::InsuranceUlip => "ULIP",
+            InstrumentPreset::InsuranceHealth => "Health Insurance",
+            InstrumentPreset::HomeLoan => "Home Loan",
+            InstrumentPreset::CarLoan => "Car Loan",
+            InstrumentPreset::PersonalLoan => "Personal Loan",
+            InstrumentPreset::CreditCard => "Credit Card",
+            InstrumentPreset::CashInHand => "Cash in Hand",
+            InstrumentPreset::SovereignGoldBond => "Sovereign Gold Bond (SGB)",
+        }
+    }
+}
+
 impl Asset {
     /// Enrich the asset with derived fields like exchange_name.
     /// Call this when returning assets to the frontend.
@@ -1206,5 +1291,49 @@ mod tests {
             "US Treasury CUSIP with USD currency should get US prefix, got {}",
             sym
         );
+    }
+}
+
+#[cfg(test)]
+mod instrument_preset_tests {
+    use super::*;
+
+    #[test]
+    fn test_fixed_deposit_expected_kind() {
+        assert_eq!(InstrumentPreset::FixedDeposit.expected_asset_kind(), AssetKind::Other);
+    }
+
+    #[test]
+    fn test_home_loan_expected_kind() {
+        assert_eq!(InstrumentPreset::HomeLoan.expected_asset_kind(), AssetKind::Liability);
+    }
+
+    #[test]
+    fn test_sgb_expected_kind() {
+        assert_eq!(InstrumentPreset::SovereignGoldBond.expected_asset_kind(), AssetKind::Investment);
+    }
+
+    #[test]
+    fn test_serde_round_trip() {
+        let preset = InstrumentPreset::FixedDeposit;
+        let json = serde_json::to_string(&preset).unwrap();
+        assert_eq!(json, "\"fixed_deposit\"");
+        let back: InstrumentPreset = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, preset);
+    }
+
+    #[test]
+    fn test_display_names_non_empty() {
+        let presets = [
+            InstrumentPreset::FixedDeposit,
+            InstrumentPreset::Ppf,
+            InstrumentPreset::Epf,
+            InstrumentPreset::Nps,
+            InstrumentPreset::HomeLoan,
+            InstrumentPreset::CashInHand,
+        ];
+        for p in &presets {
+            assert!(!p.display_name().is_empty());
+        }
     }
 }

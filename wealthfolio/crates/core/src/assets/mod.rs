@@ -31,8 +31,9 @@ pub use asset_id::{
 pub use assets_model::{
     build_asset_metadata, build_option_metadata, canonicalize_market_identity,
     normalize_quote_ccy_code, resolve_quote_ccy_precedence, Asset, AssetKind, AssetMetadata,
-    AssetSpec, BondSpec, Country, EnsureAssetsResult, InstrumentId, InstrumentType, NewAsset,
-    OptionSpec, ProviderProfile, QuoteCcyResolutionSource, QuoteMode, Sector, UpdateAssetProfile,
+    AssetSpec, BondSpec, Country, EnsureAssetsResult, InstrumentId, InstrumentPreset,
+    InstrumentType, NewAsset, OptionSpec, ProviderProfile, QuoteCcyResolutionSource, QuoteMode,
+    Sector, UpdateAssetProfile,
 };
 pub use assets_service::AssetService;
 pub use assets_traits::{AssetRepositoryTrait, AssetServiceTrait};
