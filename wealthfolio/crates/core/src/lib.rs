@@ -23,6 +23,7 @@ pub mod settings;
 pub mod sync;
 pub mod taxonomies;
 pub mod tax;
+pub mod expenses;
 pub mod utils;
 
 // Re-export common types from asset and portfolio modules
