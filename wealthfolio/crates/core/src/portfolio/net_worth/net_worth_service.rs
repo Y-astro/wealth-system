@@ -8,12 +8,12 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
 use super::net_worth_model::{
-    AssetCategory, AssetsSection, BreakdownItem, LiabilitiesSection, NetWorthHistoryPoint,
-    NetWorthResponse, StaleAssetInfo, ValuationInfo,
+    AssetCategory, AssetsSection, BreakdownItem, LiabilitiesSection, LiquidityClass,
+    NetWorthHistoryPoint, NetWorthResponse, RiskClass, StaleAssetInfo, ValuationInfo,
 };
 use super::net_worth_traits::NetWorthServiceTrait;
 use crate::accounts::{account_types, AccountRepositoryTrait};
-use crate::assets::{AssetKind, AssetRepositoryTrait};
+use crate::assets::{classify_liquidity, classify_risk, AssetKind, AssetRepositoryTrait};
 use crate::constants::DECIMAL_PRECISION;
 use crate::errors::Result;
 use crate::fx::currency::normalize_amount;
@@ -483,9 +483,45 @@ impl NetWorthServiceTrait for NetWorthService {
         // Calculate staleness
         let (oldest_valuation_date, stale_assets) = Self::calculate_staleness(&valuations, date);
 
+        // Aggregate liquid/illiquid and risk classifications
+        let mut liquid_assets = Decimal::ZERO;
+        let mut illiquid_assets = Decimal::ZERO;
+        let mut safe_assets = Decimal::ZERO;
+        let mut moderate_assets = Decimal::ZERO;
+        let mut aggressive_assets = Decimal::ZERO;
+
+        for val in &valuations {
+            if val.asset_id.starts_with("CASH:") {
+                liquid_assets += val.market_value_base;
+                safe_assets += val.market_value_base;
+                continue;
+            }
+
+            let (kind, metadata) = if let Some(asset) = asset_map.get(&val.asset_id) {
+                (&asset.kind, &asset.metadata)
+            } else {
+                (&AssetKind::Investment, &None)
+            };
+
+            if kind != &AssetKind::Liability {
+                match classify_liquidity(kind, metadata) {
+                    LiquidityClass::Liquid => liquid_assets += val.market_value_base,
+                    LiquidityClass::Illiquid => illiquid_assets += val.market_value_base,
+                }
+
+                if let Some(risk) = classify_risk(kind, metadata) {
+                    match risk {
+                        RiskClass::Safe => safe_assets += val.market_value_base,
+                        RiskClass::Moderate => moderate_assets += val.market_value_base,
+                        RiskClass::Aggressive => aggressive_assets += val.market_value_base,
+                    }
+                }
+            }
+        }
+
         debug!(
-            "Net worth calculation complete: assets={}, liabilities={}, net_worth={}",
-            assets.total, liabilities.total, net_worth
+            "Net worth calculation complete: assets={}, liabilities={}, net_worth={}, liquid={}, illiquid={}, safe={}, moderate={}, aggressive={}",
+            assets.total, liabilities.total, net_worth, liquid_assets, illiquid_assets, safe_assets, moderate_assets, aggressive_assets
         );
 
         Ok(NetWorthResponse {
@@ -496,11 +532,11 @@ impl NetWorthServiceTrait for NetWorthService {
             currency: base_currency,
             oldest_valuation_date,
             stale_assets,
-            liquid_assets: Decimal::ZERO,
-            illiquid_assets: Decimal::ZERO,
-            safe_assets: Decimal::ZERO,
-            moderate_assets: Decimal::ZERO,
-            aggressive_assets: Decimal::ZERO,
+            liquid_assets,
+            illiquid_assets,
+            safe_assets,
+            moderate_assets,
+            aggressive_assets,
         })
     }
 

@@ -41,5 +41,6 @@ pub use auto_classification::{
     AutoClassificationService, ClassificationInput, ClassificationResult,
 };
 pub use classification_service::{
-    AssetClassificationService, AssetClassifications, CategoryWithWeight,
+    classify_liquidity, classify_risk, AssetClassificationService, AssetClassifications,
+    CategoryWithWeight,
 };

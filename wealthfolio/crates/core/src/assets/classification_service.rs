@@ -214,3 +214,123 @@ impl AssetClassificationService {
         }
     }
 }
+
+use super::alternative_assets_service::extract_instrument_preset;
+use crate::assets::assets_model::{AssetKind, InstrumentPreset};
+use crate::portfolio::net_worth::{LiquidityClass, RiskClass};
+use serde_json::Value;
+
+/// Classify an asset as liquid or illiquid.
+///
+/// `metadata` is the asset's JSON attributes field.
+/// Returns `LiquidityClass::Liquid` or `LiquidityClass::Illiquid`.
+pub fn classify_liquidity(kind: &AssetKind, metadata: &Option<Value>) -> LiquidityClass {
+    if let Some(meta) = metadata {
+        if let Some(preset) = extract_instrument_preset(meta) {
+            return match preset {
+                InstrumentPreset::CashInHand | InstrumentPreset::RecurringDeposit => LiquidityClass::Liquid,
+                InstrumentPreset::Nps => {
+                    let tier = meta.get("tier").and_then(|t| t.as_str()).unwrap_or("I");
+                    if tier == "II" {
+                        LiquidityClass::Liquid
+                    } else {
+                        LiquidityClass::Illiquid
+                    }
+                }
+                _ => LiquidityClass::Illiquid,
+            };
+        }
+    }
+
+    match kind {
+        AssetKind::Investment | AssetKind::PreciousMetal => LiquidityClass::Liquid,
+        _ => LiquidityClass::Illiquid,
+    }
+}
+
+/// Classify an asset by risk level.
+///
+/// Returns `None` for liabilities (not classified).
+pub fn classify_risk(kind: &AssetKind, metadata: &Option<Value>) -> Option<RiskClass> {
+    if *kind == AssetKind::Liability {
+        return None;
+    }
+
+    if let Some(meta) = metadata {
+        if let Some(preset) = extract_instrument_preset(meta) {
+            return match preset {
+                InstrumentPreset::FixedDeposit
+                | InstrumentPreset::RecurringDeposit
+                | InstrumentPreset::Ppf
+                | InstrumentPreset::Epf
+                | InstrumentPreset::InsuranceTerm
+                | InstrumentPreset::InsuranceEndowment
+                | InstrumentPreset::InsuranceHealth
+                | InstrumentPreset::CashInHand
+                | InstrumentPreset::SovereignGoldBond => Some(RiskClass::Safe),
+
+                InstrumentPreset::Nps | InstrumentPreset::InsuranceUlip => Some(RiskClass::Moderate),
+
+                InstrumentPreset::HomeLoan
+                | InstrumentPreset::CarLoan
+                | InstrumentPreset::PersonalLoan
+                | InstrumentPreset::CreditCard => None,
+            };
+        }
+    }
+
+    match kind {
+        AssetKind::Liability => None,
+        AssetKind::Investment | AssetKind::PrivateEquity => Some(RiskClass::Aggressive),
+        AssetKind::Property
+        | AssetKind::PreciousMetal
+        | AssetKind::Collectible
+        | AssetKind::Vehicle => Some(RiskClass::Moderate),
+        _ => Some(RiskClass::Aggressive),
+    }
+}
+
+#[cfg(test)]
+mod classification_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_fd_is_illiquid() {
+        let meta = Some(json!({ "instrument_preset": "fixed_deposit" }));
+        assert_eq!(classify_liquidity(&AssetKind::Other, &meta), LiquidityClass::Illiquid);
+    }
+
+    #[test]
+    fn test_cash_is_liquid() {
+        let meta = Some(json!({ "instrument_preset": "cash_in_hand" }));
+        assert_eq!(classify_liquidity(&AssetKind::Other, &meta), LiquidityClass::Liquid);
+    }
+
+    #[test]
+    fn test_investment_is_aggressive() {
+        assert_eq!(classify_risk(&AssetKind::Investment, &None), Some(RiskClass::Aggressive));
+    }
+
+    #[test]
+    fn test_ppf_is_safe() {
+        let meta = Some(json!({ "instrument_preset": "ppf" }));
+        assert_eq!(classify_risk(&AssetKind::Other, &meta), Some(RiskClass::Safe));
+    }
+
+    #[test]
+    fn test_liability_has_no_risk_class() {
+        assert_eq!(classify_risk(&AssetKind::Liability, &None), None);
+    }
+
+    #[test]
+    fn test_property_is_moderate_risk() {
+        assert_eq!(classify_risk(&AssetKind::Property, &None), Some(RiskClass::Moderate));
+    }
+
+    #[test]
+    fn test_property_is_illiquid() {
+        assert_eq!(classify_liquidity(&AssetKind::Property, &None), LiquidityClass::Illiquid);
+    }
+}
+
