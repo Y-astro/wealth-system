@@ -243,6 +243,36 @@ impl NetWorthService {
 
         (oldest_date, stale_assets)
     }
+
+    /// Computes the fallback value for an asset based on its instrument preset.
+    fn compute_preset_value(_asset: &crate::assets::Asset, metadata: &serde_json::Value, target_date: NaiveDate) -> Option<Decimal> {
+        let preset = crate::assets::extract_instrument_preset(metadata)?;
+        match preset {
+            crate::assets::InstrumentPreset::FixedDeposit => {
+                let principal = metadata.get("principal")?.as_str()?.parse().ok()?;
+                let rate = metadata.get("interest_rate_pct")?.as_str()?.parse().ok()?;
+                let freq = metadata.get("compounding_frequency")?.as_str()?;
+                let start = NaiveDate::parse_from_str(metadata.get("start_date")?.as_str()?, "%Y-%m-%d").ok()?;
+                let maturity = NaiveDate::parse_from_str(metadata.get("maturity_date")?.as_str()?, "%Y-%m-%d").ok()?;
+                
+                crate::assets::fixed_income_calculator::calculate_fd_value(
+                    principal, rate, freq, start, maturity, target_date
+                ).ok()
+            }
+            crate::assets::InstrumentPreset::RecurringDeposit => {
+                let installment = metadata.get("monthly_installment")?.as_str()?.parse().ok()?;
+                let rate = metadata.get("interest_rate_pct")?.as_str()?.parse().ok()?;
+                let freq = metadata.get("compounding_frequency")?.as_str()?;
+                let start = NaiveDate::parse_from_str(metadata.get("start_date")?.as_str()?, "%Y-%m-%d").ok()?;
+                let maturity = NaiveDate::parse_from_str(metadata.get("maturity_date")?.as_str()?, "%Y-%m-%d").ok()?;
+                
+                crate::assets::fixed_income_calculator::calculate_rd_value(
+                    installment, rate, freq, start, maturity, target_date
+                ).ok()
+            }
+            _ => None,
+        }
+    }
 }
 
 #[async_trait]
@@ -423,13 +453,38 @@ impl NetWorthServiceTrait for NetWorthService {
             // Get the latest quote for this alternative asset
             let (price, quote_currency, valuation_date) =
                 match self.get_latest_quote_as_of(&asset.id, date) {
-                    Some((p, c, d)) => (p, c, d),
+                    Some((p, c, d)) if d == date => (p, c, d),
+                    Some((p, c, d)) => {
+                        // Check for dynamic computation fallback
+                        if let Some(metadata) = &asset.metadata {
+                            if let Some(computed) = Self::compute_preset_value(asset, metadata, date) {
+                                (computed, asset.quote_ccy.clone(), date)
+                            } else {
+                                (p, c, d)
+                            }
+                        } else {
+                            (p, c, d)
+                        }
+                    }
                     None => {
-                        debug!(
-                            "No quote found for alternative asset {}, skipping",
-                            asset.id
-                        );
-                        continue;
+                        // Check for dynamic computation fallback
+                        if let Some(metadata) = &asset.metadata {
+                            if let Some(computed) = Self::compute_preset_value(asset, metadata, date) {
+                                (computed, asset.quote_ccy.clone(), date)
+                            } else {
+                                debug!(
+                                    "No quote found for alternative asset {}, skipping",
+                                    asset.id
+                                );
+                                continue;
+                            }
+                        } else {
+                            debug!(
+                                "No quote found for alternative asset {}, skipping",
+                                asset.id
+                            );
+                            continue;
+                        }
                     }
                 };
 
@@ -775,5 +830,52 @@ impl NetWorthServiceTrait for NetWorthService {
         );
 
         Ok(history)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::assets::{Asset, AssetKind};
+    use chrono::NaiveDate;
+    use rust_decimal::Decimal;
+    use serde_json::json;
+
+    #[test]
+    fn test_compute_preset_value_fd() {
+        let asset = Asset {
+            id: "test".to_string(),
+            name: Some("Test FD".to_string()),
+            kind: AssetKind::Other,
+            quote_ccy: "INR".to_string(),
+            is_active: true,
+            created_at: Default::default(),
+            updated_at: Default::default(),
+            metadata: Some(json!({
+                crate::assets::InstrumentPreset::METADATA_KEY: "fixed_deposit",
+                "principal": "100000",
+                "interest_rate_pct": "7.0",
+                "compounding_frequency": "quarterly",
+                "start_date": "2023-01-01",
+                "maturity_date": "2024-01-01"
+            })),
+            display_code: None,
+            notes: None,
+            quote_mode: crate::assets::QuoteMode::Manual,
+            instrument_type: None,
+            instrument_symbol: None,
+            instrument_exchange_mic: None,
+            instrument_key: None,
+            provider_config: None,
+            exchange_name: None,
+        };
+        
+        let val = NetWorthService::compute_preset_value(
+            &asset, 
+            asset.metadata.as_ref().unwrap(),
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap()
+        ).expect("should compute value");
+        
+        assert_eq!(val, "107185.90".parse::<rust_decimal::Decimal>().unwrap());
     }
 }

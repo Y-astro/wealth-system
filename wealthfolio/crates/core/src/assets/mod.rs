@@ -4,6 +4,7 @@ mod alternative_assets_model;
 mod alternative_assets_service;
 mod alternative_assets_traits;
 mod asset_id;
+pub mod fixed_income_calculator;
 mod assets_constants;
 mod assets_model;
 mod assets_service;
@@ -20,7 +21,7 @@ pub use alternative_assets_model::{
     LinkLiabilityRequest, LinkLiabilityResponse, UpdateAssetDetailsRequest,
     UpdateAssetDetailsResponse, UpdateValuationRequest, UpdateValuationResponse,
 };
-pub use alternative_assets_service::AlternativeAssetService;
+pub use alternative_assets_service::{AlternativeAssetService, extract_instrument_preset};
 pub use alternative_assets_traits::{
     AlternativeAssetRepositoryTrait, AlternativeAssetServiceTrait,
 };
