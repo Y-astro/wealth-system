@@ -270,6 +270,34 @@ impl NetWorthService {
                     installment, rate, freq, start, maturity, target_date
                 ).ok()
             }
+            crate::assets::InstrumentPreset::Ppf => {
+                let rate_str = metadata.get("interest_rate_pct").and_then(|v| v.as_str()).unwrap_or("7.1");
+                let rate = rate_str.parse().ok()?;
+                
+                let mut contributions = Vec::new();
+                if let Some(conts) = metadata.get("contributions").and_then(|v| v.as_array()) {
+                    for c in conts {
+                        let d_str = c.get("date")?.as_str()?;
+                        let a_str = c.get("amount")?.as_str()?;
+                        let date = NaiveDate::parse_from_str(d_str, "%Y-%m-%d").ok()?;
+                        let amount = a_str.parse().ok()?;
+                        contributions.push((date, amount));
+                    }
+                }
+                
+                crate::assets::fixed_income_calculator::calculate_ppf_value(
+                    &contributions, rate, target_date
+                ).ok()
+            }
+            crate::assets::InstrumentPreset::Epf => {
+                // Manual balance only - no dynamic calculation. Fall through to manual quote.
+                None
+            }
+            crate::assets::InstrumentPreset::Nps => {
+                let nav = metadata.get("nav")?.as_str()?.parse().ok()?;
+                let units = metadata.get("units_held")?.as_str()?.parse().ok()?;
+                Some(crate::assets::fixed_income_calculator::calculate_nps_value(nav, units))
+            }
             _ => None,
         }
     }

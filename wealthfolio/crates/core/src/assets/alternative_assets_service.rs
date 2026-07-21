@@ -248,6 +248,16 @@ pub fn validate_instrument_preset_metadata(metadata: &Option<Value>) -> Result<(
         )));
     }
 
+    if preset == InstrumentPreset::Nps {
+        if let Some(tier) = meta.get("tier").and_then(|v| v.as_str()) {
+            if tier != "I" && tier != "II" {
+                return Err(crate::Error::Validation(ValidationError::InvalidInput(
+                    "NPS tier must be 'I' or 'II'".to_string(),
+                )));
+            }
+        }
+    }
+
     Ok(())
 }
 

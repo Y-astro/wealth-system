@@ -164,6 +164,47 @@ pub fn calculate_rd_value(
     Ok(total_value.round_dp(2))
 }
 
+/// Calculate Public Provident Fund (PPF) value
+pub fn calculate_ppf_value(
+    contributions: &[(NaiveDate, Decimal)],
+    annual_rate_pct: Decimal,
+    target_date: NaiveDate,
+) -> Result<Decimal> {
+    if annual_rate_pct < Decimal::ZERO {
+        return Err(Error::Validation(ValidationError::InvalidInput(
+            "Interest rate must be non-negative".to_string(),
+        )));
+    }
+
+    let mut total_value = Decimal::ZERO;
+    let r = annual_rate_pct / Decimal::from(100);
+
+    for (date, amount) in contributions {
+        if *date > target_date {
+            continue;
+        }
+
+        let days_elapsed = (target_date - *date).num_days();
+        let t_years = Decimal::from(days_elapsed) / Decimal::from_f64(365.25).unwrap();
+
+        let base = Decimal::ONE + r;
+        let exponent = t_years.to_f64().unwrap_or(0.0);
+        let multiplier = base.to_f64().unwrap_or(1.0).powf(exponent);
+        
+        total_value += amount * Decimal::from_f64(multiplier).unwrap_or(Decimal::ONE);
+    }
+
+    Ok(total_value.round_dp(2))
+}
+
+/// Calculate National Pension System (NPS) value
+pub fn calculate_nps_value(
+    nav: Decimal,
+    units_held: Decimal,
+) -> Decimal {
+    (nav * units_held).round_dp(2)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -254,5 +295,60 @@ mod tests {
             NaiveDate::from_ymd_opt(2024, 1, 1).unwrap()
         );
         assert!(err.is_err());
+    }
+
+    #[test]
+    fn test_ppf_basic() {
+        let p = Decimal::from(100000);
+        let r = Decimal::from_f64(7.1).unwrap();
+        let start = NaiveDate::from_ymd_opt(2023, 1, 1).unwrap();
+        let target = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(); // 1 year
+        let val = calculate_ppf_value(&[(start, p)], r, target).unwrap();
+        assert_eq!(val, Decimal::from_f64(107094.97).unwrap());
+    }
+
+    #[test]
+    fn test_ppf_multi_year() {
+        let r = Decimal::from_f64(7.1).unwrap();
+        let d1 = NaiveDate::from_ymd_opt(2022, 1, 1).unwrap();
+        let d2 = NaiveDate::from_ymd_opt(2023, 1, 1).unwrap();
+        let target = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        
+        let contributions = vec![
+            (d1, Decimal::from(100000)), // 2 years
+            (d2, Decimal::from(50000)),  // 1 year
+        ];
+        
+        let val = calculate_ppf_value(&contributions, r, target).unwrap();
+        assert_eq!(val, Decimal::from_f64(168240.82).unwrap());
+    }
+
+    #[test]
+    fn test_ppf_limit_warning_not_enforced_in_math() {
+        // Just checking math doesn't panic if limit exceeded
+        let p = Decimal::from(200000); // Exceeds 1.5L
+        let r = Decimal::from_f64(7.1).unwrap();
+        let start = NaiveDate::from_ymd_opt(2023, 1, 1).unwrap();
+        let target = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
+        
+        let val = calculate_ppf_value(&[(start, p)], r, target).unwrap();
+        assert_eq!(val, Decimal::from_f64(214189.94).unwrap());
+    }
+
+    #[test]
+    fn test_nps_calculation() {
+        let nav = Decimal::from_f64(25.50).unwrap();
+        let units = Decimal::from_f64(100.5).unwrap();
+        let val = calculate_nps_value(nav, units);
+        // 25.50 * 100.5 = 2562.75
+        assert_eq!(val, Decimal::from_f64(2562.75).unwrap());
+    }
+
+    #[test]
+    fn test_nps_zero_units() {
+        let nav = Decimal::from_f64(25.50).unwrap();
+        let units = Decimal::ZERO;
+        let val = calculate_nps_value(nav, units);
+        assert_eq!(val, Decimal::ZERO);
     }
 }
