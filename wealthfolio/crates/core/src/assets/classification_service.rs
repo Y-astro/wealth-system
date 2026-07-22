@@ -334,3 +334,15 @@ mod classification_tests {
     }
 }
 
+
+#[cfg(test)]
+mod additional_classification_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_cash_is_safe() {
+        let meta = Some(json!({ "instrument_preset": "cash_in_hand" }));
+        assert_eq!(classify_risk(&AssetKind::Other, &meta), Some(RiskClass::Safe));
+    }
+}

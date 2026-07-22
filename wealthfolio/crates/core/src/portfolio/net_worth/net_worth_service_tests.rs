@@ -1877,3 +1877,42 @@ async fn test_newly_created_account_has_default_archive_values_net_worth() {
         "Test helper should create active accounts"
     );
 }
+
+#[tokio::test]
+async fn test_cash_in_hand_net_worth() {
+    let account = create_test_account("acc_cash", "CUSTOM", "USD");
+    
+    let mut asset = create_test_asset("CASH_IN_HAND", AssetKind::Other, "USD");
+    asset.metadata = Some(serde_json::json!({
+        "instrument_preset": "cash_in_hand",
+        "location": "Home Safe",
+        "denomination_notes": "100x10, 50x20"
+    }));
+    
+    let position = create_test_position("acc_cash", "CASH_IN_HAND", dec!(1), dec!(2000), "USD");
+    let snapshot = create_test_snapshot("acc_cash", vec![position], HashMap::new());
+    
+    let quote = create_test_quote(
+        "CASH_IN_HAND",
+        dec!(2000),
+        NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
+        "USD",
+    );
+    
+    let service = create_net_worth_service(
+        vec![account],
+        vec![asset],
+        vec![snapshot],
+        vec![quote],
+    );
+    
+    let date = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+    let result = service.get_net_worth(date).await.unwrap();
+    
+    assert_eq!(result.net_worth, dec!(2000));
+    assert_eq!(get_category_value(&result, "otherAssets"), dec!(2000));
+    
+    // Verify cash-in-hand is liquid and safe
+    assert_eq!(result.liquid_assets, dec!(2000));
+    assert_eq!(result.safe_assets, dec!(2000));
+}
