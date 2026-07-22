@@ -25,6 +25,8 @@ import { useMemo, useState } from "react";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { AlternativeAssetHolding } from "@/lib/types";
 import { ALTERNATIVE_ASSET_KIND_DISPLAY_NAMES } from "@/lib/types";
+import { classifyLiquidity, classifyRisk, isStaleValuation } from "@/lib/asset-classification";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
 
 interface AlternativeHoldingsTableProps {
   holdings: AlternativeAssetHolding[];
@@ -180,6 +182,52 @@ export function AlternativeHoldingsTable({
         },
       },
       {
+        id: "classification",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Classification" />
+        ),
+        cell: ({ row }) => {
+          const holding = row.original;
+          const liquidity = classifyLiquidity(holding.kind, holding.metadata);
+          const risk = classifyRisk(holding.kind, holding.metadata);
+
+          return (
+            <div className="flex gap-2">
+              {liquidity && (
+                <Badge
+                  variant="outline"
+                  className={
+                    liquidity === "LIQUID"
+                      ? "border-blue-500/30 text-blue-600 bg-blue-500/10 text-[10px]"
+                      : "border-slate-500/30 text-slate-600 bg-slate-500/10 text-[10px]"
+                  }
+                >
+                  {liquidity === "LIQUID" ? "Liquid" : "Illiquid"}
+                </Badge>
+              )}
+              {risk && (
+                <Badge
+                  variant="outline"
+                  className={
+                    risk === "SAFE"
+                      ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/10 text-[10px]"
+                      : risk === "MODERATE"
+                        ? "border-amber-500/30 text-amber-600 bg-amber-500/10 text-[10px]"
+                        : "border-red-500/30 text-red-600 bg-red-500/10 text-[10px]"
+                  }
+                >
+                  {risk === "SAFE"
+                    ? "Safe"
+                    : risk === "MODERATE"
+                      ? "Moderate"
+                      : "Aggressive"}
+                </Badge>
+              )}
+            </div>
+          );
+        },
+      },
+      {
         id: "valuationDate",
         accessorKey: "valuationDate",
         header: ({ column }) => (
@@ -193,8 +241,16 @@ export function AlternativeHoldingsTable({
             month: "short",
             day: "numeric",
           });
+          const isStale = isStaleValuation(holding.valuationDate);
 
-          return <div className="text-muted-foreground text-right text-sm">{formatted}</div>;
+          return (
+            <div className="flex items-center justify-end gap-1.5 text-muted-foreground text-sm">
+              {isStale && (
+                <Icons.AlertCircle className="h-4 w-4 text-yellow-500" />
+              )}
+              <div>{formatted}</div>
+            </div>
+          );
         },
         enableSorting: true,
       },

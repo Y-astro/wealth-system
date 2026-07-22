@@ -5,6 +5,8 @@ import { AmountDisplay, GainPercent, Separator } from "@wealthfolio/ui";
 import { Card } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
+import { Badge } from "@wealthfolio/ui/components/ui/badge";
+import { classifyLiquidity, classifyRisk, isStaleValuation } from "@/lib/asset-classification";
 
 interface AlternativeHoldingsListMobileProps {
   holdings: AlternativeAssetHolding[];
@@ -47,6 +49,9 @@ export function AlternativeHoldingsListMobile({
 
         const gain = holding.unrealizedGain ? parseFloat(holding.unrealizedGain) : null;
         const gainPct = holding.unrealizedGainPct ? parseFloat(holding.unrealizedGainPct) : null;
+        const liquidity = classifyLiquidity(holding.kind, holding.metadata);
+        const risk = classifyRisk(holding.kind, holding.metadata);
+        const isStale = isStaleValuation(holding.valuationDate);
 
         return (
           <Card
@@ -60,8 +65,45 @@ export function AlternativeHoldingsListMobile({
                   <AssetKindIcon kind={holding.kind} size={20} />
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  <p className="truncate font-semibold">{holding.name}</p>
+                  <p className="truncate font-semibold flex items-center gap-1.5">
+                    {holding.name}
+                    {isStale && (
+                      <Icons.AlertCircle className="h-3 w-3 text-yellow-500" />
+                    )}
+                  </p>
                   <p className="text-muted-foreground truncate text-sm">{kindDisplay}</p>
+                  <div className="flex gap-1.5 mt-1">
+                    {liquidity && (
+                      <Badge
+                        variant="outline"
+                        className={
+                          liquidity === "LIQUID"
+                            ? "border-blue-500/30 text-blue-600 bg-blue-500/10 text-[10px] px-1.5 py-0"
+                            : "border-slate-500/30 text-slate-600 bg-slate-500/10 text-[10px] px-1.5 py-0"
+                        }
+                      >
+                        {liquidity === "LIQUID" ? "Liquid" : "Illiquid"}
+                      </Badge>
+                    )}
+                    {risk && (
+                      <Badge
+                        variant="outline"
+                        className={
+                          risk === "SAFE"
+                            ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/10 text-[10px] px-1.5 py-0"
+                            : risk === "MODERATE"
+                              ? "border-amber-500/30 text-amber-600 bg-amber-500/10 text-[10px] px-1.5 py-0"
+                              : "border-red-500/30 text-red-600 bg-red-500/10 text-[10px] px-1.5 py-0"
+                        }
+                      >
+                        {risk === "SAFE"
+                          ? "Safe"
+                          : risk === "MODERATE"
+                            ? "Moderate"
+                            : "Aggressive"}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="ml-2 text-right">
