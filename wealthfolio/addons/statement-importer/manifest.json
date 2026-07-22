@@ -1,0 +1,27 @@
+{
+  "id": "statement-importer-addon",
+  "name": "Statement Importer",
+  "version": "1.0.0",
+  "description": "Upload bank statements (PDF, Excel, CSV) and parse them automatically using AI.",
+  "author": "Astro",
+  "main": "dist/addon.js",
+  "sdkVersion": "3.0.0",
+  "enabled": true,
+  "permissions": [
+    {
+      "category": "accounts",
+      "functions": ["getAll"],
+      "purpose": "Access accounts information to select where to import the statement"
+    },
+    {
+      "category": "activities",
+      "functions": ["import"],
+      "purpose": "Import extracted transaction activities into the database"
+    },
+    {
+      "category": "ui",
+      "functions": ["sidebar.addItem", "router.add"],
+      "purpose": "Provide a GUI page and sidebar link for uploading statements"
+    }
+  ]
+}

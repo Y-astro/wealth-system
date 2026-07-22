@@ -298,6 +298,12 @@ impl NetWorthService {
                 let units = metadata.get("units_held")?.as_str()?.parse().ok()?;
                 Some(crate::assets::fixed_income_calculator::calculate_nps_value(nav, units))
             }
+            crate::assets::InstrumentPreset::InsuranceTerm | crate::assets::InstrumentPreset::InsuranceHealth => {
+                Some(Decimal::ZERO)
+            }
+            crate::assets::InstrumentPreset::InsuranceEndowment | crate::assets::InstrumentPreset::InsuranceUlip => {
+                Some(crate::assets::insurance_calculator::calculate_insurance_value(&preset, metadata))
+            }
             _ => None,
         }
     }
