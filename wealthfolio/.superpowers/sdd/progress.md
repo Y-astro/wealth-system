@@ -39,9 +39,18 @@
 | P2-T5 | Frontend: instrument preset selection in asset forms | ✅ DONE (reviewed) | d79e153 | Indian instrument preset selection & forms added |
 | P2-T6 | Frontend: instrument-specific detail views | ✅ DONE (reviewed) | 6721819 | PresetDetailCard component integrated into asset details sheet & profile |
 | P2-T7 | Cash-in-hand preset end-to-end verification | ✅ DONE (reviewed) | 3428c2d | Classification & NetWorthService unit tests added |
-| P2-T8 | Integration tests: full preset lifecycle | TODO | — | Depends on all |
+| P2-T8 | Integration tests: full preset lifecycle | ✅ DONE (reviewed) | 9310118 | 15/15 integration tests for all presets passing |
+
+## Phase 3 — Wealth Dashboard (Weeks 7–9) Tasks
+
+| # | Task | Status | Commits | Notes |
+|---|------|--------|---------|-------|
+| P3-T1 | Liquidity/risk allocation cards on net worth dashboard | ✅ DONE (reviewed) | d8e1cca | LiquidityCards + RiskAllocationCards components added |
+| P3-T2 | Fix composition widget currency + enhance donut chart | ✅ DONE (reviewed) | 8a394ec | Dynamic currency prop added, INR hardcoding removed |
+| P3-T3 | Enhanced Holdings page (liquidity/risk badges) | ✅ DONE (reviewed) | 3f7aff9 | Classification badges + stale valuation warning icon added |
+| P3-T4 | Enhanced Income dashboard | ✅ DONE (reviewed) | c72774a | Added Indian income types awareness + info notes |
 
 ## Recovery Notes
 
 After any context loss, check `git log --oneline` and compare to commit hashes above.
-Task briefs: `/home/astro/wealth-system/wealthfolio/.superpowers/sdd/briefs/phase-2-tasks.md`
+Task briefs: `/home/astro/wealth-system/wealthfolio/.superpowers/sdd/briefs/phase-3-tasks.md`
