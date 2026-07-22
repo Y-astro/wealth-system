@@ -304,6 +304,35 @@ impl NetWorthService {
             crate::assets::InstrumentPreset::InsuranceEndowment | crate::assets::InstrumentPreset::InsuranceUlip => {
                 Some(crate::assets::insurance_calculator::calculate_insurance_value(&preset, metadata))
             }
+            crate::assets::InstrumentPreset::HomeLoan
+            | crate::assets::InstrumentPreset::CarLoan
+            | crate::assets::InstrumentPreset::PersonalLoan => {
+                let principal = metadata.get("principal_amount")?.as_str()?.parse().ok()?;
+                let rate = metadata.get("interest_rate_pct")?.as_str()?.parse().ok()?;
+                let tenure = metadata.get("tenure_months")?.as_str()?.parse().ok()?;
+                let disbursement = chrono::NaiveDate::parse_from_str(metadata.get("disbursement_date")?.as_str()?, "%Y-%m-%d").ok()?;
+                
+                let emi_start = metadata.get("emi_start_date")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+                    .unwrap_or_else(|| {
+                        use chrono::Datelike;
+                        let mut y = disbursement.year();
+                        let mut m = disbursement.month() + 1;
+                        if m > 12 {
+                            y += 1;
+                            m -= 12;
+                        }
+                        chrono::NaiveDate::from_ymd_opt(y, m, disbursement.day()).unwrap_or(disbursement)
+                    });
+                
+                crate::assets::loan_calculator::calculate_outstanding_balance(
+                    principal, rate, tenure, disbursement, emi_start, target_date
+                ).ok()
+            }
+            crate::assets::InstrumentPreset::CreditCard => {
+                metadata.get("current_outstanding")?.as_str()?.parse().ok()
+            }
             _ => None,
         }
     }

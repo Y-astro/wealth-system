@@ -34,7 +34,7 @@
 |---|------|--------|---------|-------|
 | P2-T1 | FD/RD compound interest calculator + net worth integration | ✅ DONE (reviewed) | 7cdabb0 | 8/8 tests; Approved. Minor: lift Decimal::from_f64(365.25) to const |
 | P2-T2 | PPF/EPF/NPS valuation helpers + net worth integration | ✅ DONE (reviewed) | a08b90d | 6/6 tests; Approved |
-| P2-T3 | Insurance valuation logic + premium status | TODO | — | — |
+| P2-T3 | Insurance valuation logic + premium status | ✅ DONE (reviewed) | b2875f3 | 7/7 tests; Approved |
 | P2-T4 | Loan amortization calculator + outstanding balance | TODO | — | — |
 | P2-T5 | Frontend: instrument preset selection in asset forms | TODO | — | Depends on T1-T4 |
 | P2-T6 | Frontend: instrument-specific detail views | TODO | — | Depends on T5 |

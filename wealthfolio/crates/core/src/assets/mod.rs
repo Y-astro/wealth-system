@@ -6,6 +6,7 @@ mod alternative_assets_traits;
 mod asset_id;
 pub mod fixed_income_calculator;
 pub mod insurance_calculator;
+pub mod loan_calculator;
 mod assets_constants;
 mod assets_model;
 mod assets_service;
