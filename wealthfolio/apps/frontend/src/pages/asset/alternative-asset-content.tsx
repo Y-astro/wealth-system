@@ -22,6 +22,7 @@ import {
 } from "@wealthfolio/ui";
 import HistoryChart from "@/components/history-chart-symbol";
 import { ValueHistoryDataGrid } from "./alternative-assets";
+import { PresetDetailCard } from "./alternative-assets/components/preset-detail-card";
 import {
   AssetDetailsSheet,
   type AssetDetailsSheetAsset,
@@ -245,15 +246,25 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
           </Card>
 
           {/* Right: Detail card */}
-          <AlternativeAssetDetailCard
-            holding={holding}
-            linkedAsset={linkedAsset}
-            netEquity={isLinkableAsset ? (netEquity ?? marketValue) : null}
-            hasLinkedLiabilities={linkedLiabilities.length > 0}
-            linkedLiabilities={isLinkableAsset ? linkedLiabilities : []}
-            isLiability={isLiability}
-            className="col-span-1"
-          />
+          {holding.metadata?.instrument_preset ? (
+            <div className="col-span-1">
+              <PresetDetailCard
+                preset={holding.metadata.instrument_preset as string}
+                metadata={holding.metadata}
+                currency={holding.currency}
+              />
+            </div>
+          ) : (
+            <AlternativeAssetDetailCard
+              holding={holding}
+              linkedAsset={linkedAsset}
+              netEquity={isLinkableAsset ? (netEquity ?? marketValue) : null}
+              hasLinkedLiabilities={linkedLiabilities.length > 0}
+              linkedLiabilities={isLinkableAsset ? linkedLiabilities : []}
+              isLiability={isLiability}
+              className="col-span-1"
+            />
+          )}
         </div>
 
         {/* Second row: About section */}
