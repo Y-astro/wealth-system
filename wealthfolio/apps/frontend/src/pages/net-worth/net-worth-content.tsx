@@ -207,9 +207,10 @@ interface CompositionItem {
 interface CompositionWidgetProps {
   data: ParsedNetWorth | null;
   isLoading?: boolean;
+  currency?: string;
 }
 
-function CompositionWidget({ data, isLoading }: CompositionWidgetProps) {
+function CompositionWidget({ data, isLoading, currency = "USD" }: CompositionWidgetProps) {
   const items = useMemo((): CompositionItem[] => {
     if (!data || data.assets.total === 0) return [];
 
@@ -268,8 +269,8 @@ function CompositionWidget({ data, isLoading }: CompositionWidgetProps) {
                 ))}
               </Pie>
               <RechartsTooltip 
-                formatter={(value: any) => 
-                  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'INR' }).format(value)
+                formatter={(value: number) => 
+                  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value)
                 }
               />
             </PieChart>
@@ -692,7 +693,7 @@ export function NetWorthContent({ onAddAsset, onAddLiability }: NetWorthContentP
             {/* Right column: Info cards */}
             <div className="space-y-4 lg:col-span-1">
               {/* Composition widget */}
-              <CompositionWidget data={parsedData} isLoading={isLoading} />
+              <CompositionWidget data={parsedData} isLoading={isLoading} currency={currency} />
 
               {/* Stale valuations warning */}
               {hasStaleValuations && (
