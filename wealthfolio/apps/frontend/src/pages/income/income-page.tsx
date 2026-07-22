@@ -10,6 +10,12 @@ import {
 import { EmptyPlaceholder } from "@wealthfolio/ui/components/ui/empty-placeholder";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@wealthfolio/ui/components/ui/tooltip";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { AccountSelector } from "@/components/account-selector";
 import { createPortfolioAccount, PORTFOLIO_ACCOUNT_ID } from "@/lib/constants";
@@ -326,68 +332,98 @@ export default function IncomePage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="border-yellow-500/10 bg-yellow-500/10">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Income Sources</CardTitle>
-              <Icons.PieChart className="text-muted-foreground h-4 w-4" />
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {[
-                  {
-                    name: "Dividends",
-                    amount: (
-                      <AmountDisplay
-                        value={dividendIncome}
-                        currency={currency}
-                        isHidden={isBalanceHidden}
-                      />
-                    ),
-                    percentage: dividendPercentage,
-                  },
-                  {
-                    name: "Interest",
-                    amount: (
-                      <AmountDisplay
-                        value={interestIncome}
-                        currency={currency}
-                        isHidden={isBalanceHidden}
-                      />
-                    ),
-                    percentage: interestPercentage,
-                  },
-                ].map((source, index) => {
-                  const chartColor = `var(--chart-${index + 1})`;
-                  return (
-                    <div key={index} className="flex items-center">
-                      <div className="w-full">
-                        <div className="mb-0 flex justify-between">
-                          <span className="text-xs">{source.name}</span>
-                          <span className="text-muted-foreground text-xs">{source.amount}</span>
-                        </div>
-                        <div
-                          className="relative h-4 w-full rounded-full"
-                          style={{
-                            backgroundColor: `color-mix(in srgb, ${chartColor} 20%, transparent)`,
-                          }}
-                        >
+          <div className="space-y-6">
+            <Card className="border-yellow-500/10 bg-yellow-500/10">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Income Sources</CardTitle>
+                <Icons.PieChart className="text-muted-foreground h-4 w-4" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {[
+                    {
+                      name: "Dividends",
+                      amount: (
+                        <AmountDisplay
+                          value={dividendIncome}
+                          currency={currency}
+                          isHidden={isBalanceHidden}
+                        />
+                      ),
+                      percentage: dividendPercentage,
+                    },
+                    {
+                      name: "Interest",
+                      amount: (
+                        <AmountDisplay
+                          value={interestIncome}
+                          currency={currency}
+                          isHidden={isBalanceHidden}
+                        />
+                      ),
+                      percentage: interestPercentage,
+                      tooltip: "Includes FD interest, savings interest, and other interest income"
+                    },
+                  ].map((source, index) => {
+                    const chartColor = `var(--chart-${index + 1})`;
+                    return (
+                      <div key={index} className="flex items-center">
+                        <div className="w-full">
+                          <div className="mb-0 flex justify-between">
+                            <span className="text-xs">
+                              {source.tooltip ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-help border-b border-dashed border-muted-foreground/50">
+                                        {source.name}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs">{source.tooltip}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                source.name
+                              )}
+                            </span>
+                            <span className="text-muted-foreground text-xs">{source.amount}</span>
+                          </div>
                           <div
-                            className="text-background flex h-4 items-center justify-center rounded-full text-xs"
+                            className="relative h-4 w-full rounded-full"
                             style={{
-                              width: `${source.percentage}%`,
-                              backgroundColor: chartColor,
+                              backgroundColor: `color-mix(in srgb, ${chartColor} 20%, transparent)`,
                             }}
                           >
-                            {source.percentage > 0 ? `${source.percentage.toFixed(1)}%` : ""}
+                            <div
+                              className="text-background flex h-4 items-center justify-center rounded-full text-xs"
+                              style={{
+                                width: `${source.percentage}%`,
+                                backgroundColor: chartColor,
+                              }}
+                            >
+                              {source.percentage > 0 ? `${source.percentage.toFixed(1)}%` : ""}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+            {totalIncome < 10 && (
+              <Card className="border-yellow-500/10 bg-yellow-500/10">
+                <CardContent className="flex items-start gap-3 p-4">
+                  <Icons.Info className="text-yellow-500 mt-0.5 h-4 w-4 shrink-0" />
+                  <p className="text-muted-foreground text-xs">
+                    More income types like rental income, FD interest, and PPF interest will be tracked as you add Indian financial instruments.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
           <IncomeHistoryChart
