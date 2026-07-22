@@ -37,6 +37,31 @@ export const ASSET_KIND_OPTIONS = [
   { value: AlternativeAssetKind.OTHER, label: "Other" },
 ] as const;
 
+
+// Instrument Presets for Indian Instruments and Liabilities
+export const INSTRUMENT_PRESETS = [
+  // Other / Indian Instruments
+  { value: "fixed_deposit", label: "Fixed Deposit (FD)", kind: "other", category: "indian" },
+  { value: "recurring_deposit", label: "Recurring Deposit (RD)", kind: "other", category: "indian" },
+  { value: "ppf", label: "Public Provident Fund (PPF)", kind: "other", category: "indian" },
+  { value: "epf", label: "Employee Provident Fund (EPF)", kind: "other", category: "indian" },
+  { value: "nps", label: "National Pension System (NPS)", kind: "other", category: "indian" },
+  { value: "insurance_term", label: "Term Life Insurance", kind: "other", category: "indian" },
+  { value: "insurance_endowment", label: "Endowment/Whole Life Insurance", kind: "other", category: "indian" },
+  { value: "insurance_ulip", label: "ULIP", kind: "other", category: "indian" },
+  { value: "insurance_health", label: "Health Insurance", kind: "other", category: "indian" },
+  { value: "cash_in_hand", label: "Cash in Hand", kind: "other", category: "indian" },
+  { value: "sovereign_gold_bond", label: "Sovereign Gold Bond (SGB)", kind: "investment", category: "indian" },
+  
+  // Liabilities
+  { value: "home_loan", label: "Home Loan", kind: "liability", category: "liability" },
+  { value: "car_loan", label: "Car Loan", kind: "liability", category: "liability" },
+  { value: "personal_loan", label: "Personal Loan", kind: "liability", category: "liability" },
+  { value: "credit_card", label: "Credit Card", kind: "liability", category: "liability" },
+] as const;
+
+export type InstrumentPreset = (typeof INSTRUMENT_PRESETS)[number]["value"];
+
 // Zod schema for the quick add form
 export const alternativeAssetQuickAddSchema = z
   .object({

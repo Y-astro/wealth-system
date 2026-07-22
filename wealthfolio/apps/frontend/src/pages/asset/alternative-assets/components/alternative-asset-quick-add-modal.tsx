@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { useSettingsContext } from "@/lib/settings-provider";
 
 import { METAL_TYPES, LIABILITY_TYPES, WEIGHT_UNITS } from "./alternative-asset-quick-add-schema";
+import { PresetFormFields } from "./preset-form-fields";
 import { useAlternativeAssetMutations } from "../hooks/use-alternative-asset-mutations";
 import {
   AlternativeAssetKind,
@@ -84,12 +85,23 @@ const ASSET_TYPES = [
   },
   {
     kind: AlternativeAssetKind.OTHER,
+    label: "Indian Instruments",
+    description: "FDs, PPF, NPS & more",
+    icon: Icons.OtherAssetDuotone,
+    iconColor: "text-amber-400",
+    selectedBg: "bg-amber-400/15",
+    borderColor: "border-amber-400/50",
+    isPresetCategory: true,
+  },
+  {
+    kind: AlternativeAssetKind.OTHER,
     label: "Other Asset",
     description: "Custom assets",
     icon: Icons.OtherAssetDuotone,
     iconColor: "text-base-500",
     selectedBg: "bg-base-500/15",
     borderColor: "border-base-500/50",
+    isPresetCategory: false,
   },
 ];
 
@@ -117,6 +129,9 @@ interface FormData {
   liabilityType?: string;
   hasMortgage?: boolean;
   linkedAssetId?: string;
+  instrumentPreset?: string;
+  presetCategory?: string;
+  presetFields?: Record<string, string>;
 }
 
 interface AlternativeAssetQuickAddModalProps {
@@ -219,10 +234,13 @@ export function AlternativeAssetQuickAddModal({
     [formData.kind],
   );
 
-  const handleAssetTypeSelect = useCallback((kind: AlternativeAssetKind) => {
+  const handleAssetTypeSelect = useCallback((type: typeof ASSET_TYPES[0]) => {
     setFormData((prev) => ({
       ...prev,
-      kind,
+      kind: type.kind,
+      presetCategory: type.isPresetCategory ? type.label : undefined,
+      instrumentPreset: undefined,
+      presetFields: {},
     }));
   }, []);
 
@@ -238,14 +256,28 @@ export function AlternativeAssetQuickAddModal({
 
   const canProceed = useMemo(() => {
     if (step === 1) return true;
+    if (formData.presetCategory && !formData.instrumentPreset) return false;
     return formData.name.trim() && formData.currentValue;
-  }, [step, formData.name, formData.currentValue]);
+  }, [step, formData.name, formData.currentValue, formData.presetCategory, formData.instrumentPreset]);
 
   const handleSubmit = async () => {
     if (!canProceed) return;
 
     const metadata: Record<string, string> = {};
     const isLiability = formData.kind === AlternativeAssetKind.LIABILITY;
+
+    if (formData.instrumentPreset) {
+      metadata.instrument_preset = formData.instrumentPreset;
+      // Copy presetFields into metadata
+      if (formData.presetFields) {
+        Object.assign(metadata, formData.presetFields);
+      }
+      
+      // Some preset fields map to standard fields in the request
+      if (metadata.principal) metadata.principal = formData.currentValue;
+      if (metadata.monthly_installment) metadata.monthly_installment = metadata.monthly_installment || "0";
+      if (metadata.principal_amount) metadata.principal_amount = formData.currentValue;
+    }
 
     // Use unified 'sub_type' field for all asset types
     if (formData.kind === AlternativeAssetKind.PRECIOUS_METAL) {
@@ -372,7 +404,7 @@ export function AlternativeAssetQuickAddModal({
                       <motion.button
                         key={type.kind}
                         type="button"
-                        onClick={() => handleAssetTypeSelect(type.kind)}
+                        onClick={() => handleAssetTypeSelect(type)}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         className={cn(
@@ -428,7 +460,18 @@ export function AlternativeAssetQuickAddModal({
                 className="space-y-3 p-4"
               >
                 {/* Type-specific fields */}
-                {formData.kind === AlternativeAssetKind.PRECIOUS_METAL && (
+                {formData.presetCategory ? (
+                  <div className="space-y-4">
+                    <PresetFormFields
+                      presetCategory={formData.presetCategory}
+                      instrumentPreset={formData.instrumentPreset}
+                      formData={formData}
+                      updateFormData={updateFormData}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    {formData.kind === AlternativeAssetKind.PRECIOUS_METAL && (
                   <>
                     <div className="space-y-2">
                       <Label className="text-foreground text-sm font-medium">Metal Type</Label>
@@ -484,6 +527,8 @@ export function AlternativeAssetQuickAddModal({
                       sheetTitle="Select Liability Type"
                     />
                   </div>
+                )}
+                </>
                 )}
 
                 {/* Name field */}
