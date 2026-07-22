@@ -37,8 +37,8 @@
 | P2-T3 | Insurance valuation logic + premium status | ✅ DONE (reviewed) | b2875f3 | 7/7 tests; Approved |
 | P2-T4 | Loan amortization calculator + outstanding balance | ✅ DONE (reviewed) | 3451f85 | 4/4 tests; Approved |
 | P2-T5 | Frontend: instrument preset selection in asset forms | ✅ DONE (reviewed) | d79e153 | Indian instrument preset selection & forms added |
-| P2-T6 | Frontend: instrument-specific detail views | TODO | — | Depends on T5 |
-| P2-T7 | Cash-in-hand preset end-to-end verification | TODO | — | — |
+| P2-T6 | Frontend: instrument-specific detail views | ✅ DONE (reviewed) | 6721819 | PresetDetailCard component integrated into asset details sheet & profile |
+| P2-T7 | Cash-in-hand preset end-to-end verification | ✅ DONE (reviewed) | 3428c2d | Classification & NetWorthService unit tests added |
 | P2-T8 | Integration tests: full preset lifecycle | TODO | — | Depends on all |
 
 ## Recovery Notes

@@ -245,7 +245,7 @@ impl NetWorthService {
     }
 
     /// Computes the fallback value for an asset based on its instrument preset.
-    fn compute_preset_value(_asset: &crate::assets::Asset, metadata: &serde_json::Value, target_date: NaiveDate) -> Option<Decimal> {
+    pub fn compute_preset_value(_asset: &crate::assets::Asset, metadata: &serde_json::Value, target_date: NaiveDate) -> Option<Decimal> {
         let preset = crate::assets::extract_instrument_preset(metadata)?;
         match preset {
             crate::assets::InstrumentPreset::FixedDeposit => {

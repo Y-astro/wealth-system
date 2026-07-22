@@ -47,3 +47,6 @@ pub use classification_service::{
     classify_liquidity, classify_risk, AssetClassificationService, AssetClassifications,
     CategoryWithWeight,
 };
+
+#[cfg(test)]
+mod preset_lifecycle_tests;
