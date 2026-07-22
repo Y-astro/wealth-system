@@ -81,6 +81,15 @@ interface ParsedNetWorth {
       assetId?: string;
     }[];
   };
+  liquidity: {
+    liquid: number;
+    illiquid: number;
+  };
+  risk: {
+    safe: number;
+    moderate: number;
+    aggressive: number;
+  };
 }
 
 interface BalanceSheetProps {
@@ -259,7 +268,7 @@ function CompositionWidget({ data, isLoading }: CompositionWidgetProps) {
                 ))}
               </Pie>
               <RechartsTooltip 
-                formatter={(value: number) => 
+                formatter={(value: any) => 
                   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'INR' }).format(value)
                 }
               />
@@ -362,6 +371,15 @@ export function NetWorthContent({ onAddAsset, onAddLiability }: NetWorthContentP
           value: parseFloat(item.value) || 0,
           assetId: item.assetId,
         })),
+      },
+      liquidity: {
+        liquid: parseFloat((netWorthData as any).liquidAssets) || 0,
+        illiquid: parseFloat((netWorthData as any).illiquidAssets) || 0,
+      },
+      risk: {
+        safe: parseFloat((netWorthData as any).safeAssets) || 0,
+        moderate: parseFloat((netWorthData as any).moderateAssets) || 0,
+        aggressive: parseFloat((netWorthData as any).aggressiveAssets) || 0,
       },
     };
   }, [netWorthData]);
@@ -520,6 +538,120 @@ export function NetWorthContent({ onAddAsset, onAddLiability }: NetWorthContentP
 
         {/* Content section */}
         <div className="grow px-4 pb-[calc(var(--mobile-nav-ui-height)+max(var(--mobile-nav-gap),env(safe-area-inset-bottom)))] pt-12 md:px-6 md:pb-6 md:pt-6 lg:px-10 lg:pb-8 lg:pt-8">
+          {isLoading ? (
+            <div className="mb-8 space-y-6">
+              <div className="space-y-3">
+                <Skeleton className="h-5 w-32" />
+                <div className="grid grid-cols-2 gap-4">
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Skeleton className="h-5 w-40" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                  <Skeleton className="h-24 w-full rounded-xl" />
+                </div>
+              </div>
+            </div>
+          ) : parsedData && parsedData.assets.total > 0 ? (
+            <div className="mb-8 space-y-8">
+              {/* Liquidity Section */}
+              <div className="space-y-3">
+                <h2 className="text-md font-semibold tracking-tight">Liquidity</h2>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="border-border bg-card relative flex flex-col justify-between overflow-hidden rounded-xl border p-4 shadow-sm">
+                    <div className="bg-blue-500 absolute bottom-0 left-0 top-0 w-1"></div>
+                    <div className="pl-2">
+                      <p className="text-muted-foreground text-sm font-medium">Liquid</p>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-xl font-bold">
+                          <PrivacyAmount value={parsedData.liquidity.liquid} currency={currency} />
+                        </span>
+                        <span className="text-muted-foreground text-sm font-medium">
+                          {((parsedData.liquidity.liquid / parsedData.assets.total) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border-border bg-card relative flex flex-col justify-between overflow-hidden rounded-xl border p-4 shadow-sm">
+                    <div className="bg-slate-500 absolute bottom-0 left-0 top-0 w-1"></div>
+                    <div className="pl-2">
+                      <p className="text-muted-foreground text-sm font-medium">Illiquid</p>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-xl font-bold">
+                          <PrivacyAmount value={parsedData.liquidity.illiquid} currency={currency} />
+                        </span>
+                        <span className="text-muted-foreground text-sm font-medium">
+                          {((parsedData.liquidity.illiquid / parsedData.assets.total) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-muted flex h-2 w-full overflow-hidden rounded-full">
+                  <div className="bg-blue-500 h-full" style={{ width: `${(parsedData.liquidity.liquid / parsedData.assets.total) * 100}%` }}></div>
+                  <div className="bg-slate-500 h-full" style={{ width: `${(parsedData.liquidity.illiquid / parsedData.assets.total) * 100}%` }}></div>
+                </div>
+              </div>
+
+              {/* Risk Allocation Section */}
+              <div className="space-y-3">
+                <h2 className="text-md font-semibold tracking-tight">Risk Allocation</h2>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="border-border bg-card relative flex flex-col justify-between overflow-hidden rounded-xl border p-4 shadow-sm">
+                    <div className="bg-emerald-500 absolute bottom-0 left-0 top-0 w-1"></div>
+                    <div className="pl-2">
+                      <p className="text-muted-foreground text-sm font-medium">Safe</p>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-xl font-bold">
+                          <PrivacyAmount value={parsedData.risk.safe} currency={currency} />
+                        </span>
+                        <span className="text-muted-foreground text-sm font-medium">
+                          {((parsedData.risk.safe / parsedData.assets.total) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border-border bg-card relative flex flex-col justify-between overflow-hidden rounded-xl border p-4 shadow-sm">
+                    <div className="bg-amber-500 absolute bottom-0 left-0 top-0 w-1"></div>
+                    <div className="pl-2">
+                      <p className="text-muted-foreground text-sm font-medium">Moderate</p>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-xl font-bold">
+                          <PrivacyAmount value={parsedData.risk.moderate} currency={currency} />
+                        </span>
+                        <span className="text-muted-foreground text-sm font-medium">
+                          {((parsedData.risk.moderate / parsedData.assets.total) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border-border bg-card relative flex flex-col justify-between overflow-hidden rounded-xl border p-4 shadow-sm">
+                    <div className="bg-rose-500 absolute bottom-0 left-0 top-0 w-1"></div>
+                    <div className="pl-2">
+                      <p className="text-muted-foreground text-sm font-medium">Aggressive</p>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-xl font-bold">
+                          <PrivacyAmount value={parsedData.risk.aggressive} currency={currency} />
+                        </span>
+                        <span className="text-muted-foreground text-sm font-medium">
+                          {((parsedData.risk.aggressive / parsedData.assets.total) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-muted flex h-2 w-full overflow-hidden rounded-full">
+                  <div className="bg-emerald-500 h-full" style={{ width: `${(parsedData.risk.safe / parsedData.assets.total) * 100}%` }}></div>
+                  <div className="bg-amber-500 h-full" style={{ width: `${(parsedData.risk.moderate / parsedData.assets.total) * 100}%` }}></div>
+                  <div className="bg-rose-500 h-full" style={{ width: `${(parsedData.risk.aggressive / parsedData.assets.total) * 100}%` }}></div>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-20">
             {/* Left column: Breakdown */}
             <div className="lg:col-span-2">
