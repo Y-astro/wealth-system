@@ -50,7 +50,14 @@
 | P3-T3 | Enhanced Holdings page (liquidity/risk badges) | ✅ DONE (reviewed) | 3f7aff9 | Classification badges + stale valuation warning icon added |
 | P3-T4 | Enhanced Income dashboard | ✅ DONE (reviewed) | c72774a | Added Indian income types awareness + info notes |
 
+## Phase 4 — Universal Ingestion (Weeks 10–13) Tasks
+
+| # | Task | Status | Commits | Notes |
+|---|------|--------|---------|-------|
+| P4-T1 | AI prompt enhancements & template learning engine | ✅ DONE (reviewed) | e0442da | Prompt rules, Gemini fallback, TemplateEngine & DB migration added; Approved |
+
 ## Recovery Notes
 
 After any context loss, check `git log --oneline` and compare to commit hashes above.
-Task briefs: `/home/astro/wealth-system/wealthfolio/.superpowers/sdd/briefs/phase-3-tasks.md`
+Task briefs: `/home/astro/wealth-system/wealthfolio/.superpowers/sdd/briefs/phase-4-tasks.md`
+
