@@ -19,4 +19,4 @@ DONE
 
 ## Concerns / Notes
 - The template engine is basic and currently uses a naive heuristic to extract column headers. It can be extended with more robust regex and machine learning based patterns for more accurate template matching.
-- We need to hook up the actual template engine usage inside `activities.rs` in subsequent PRs to completely bypass the AI call based on matched template logic.
+- **Reviewer Fixes applied**: The `activities.rs` was updated to require `openingBalance`, `openingBalanceDate`, and we correctly parse them via `LlmOutput`. Furthermore, `TemplateEngine::match_template` and `TemplateEngine::extract_signature` were fully wired into `apps/server/src/api/activities.rs` to cache successful structural signatures and bypass AI when possible. The test coverage for the matching logic was also added. All workspace tests are passing.
