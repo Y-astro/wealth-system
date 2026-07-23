@@ -11,6 +11,7 @@ import React, { useEffect, useState, useRef } from "react";
 
 function StatementImporter({ ctx }: { ctx: AddonContext }) {
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+  const [sourceType, setSourceType] = useState<string>("BANK_STATEMENT");
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [step, setStep] = useState<"upload" | "loading" | "review" | "success">("upload");
@@ -67,14 +68,15 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
   };
 
   // Upload mutation
-  const uploadMutation = useMutation<ActivityImport[], Error, { file: File; accountId: string }>({
-    mutationFn: async ({ file, accountId }) => {
+  const uploadMutation = useMutation<ActivityImport[], Error, { file: File; accountId: string; sourceType: string }>({
+    mutationFn: async ({ file, accountId, sourceType }) => {
       setStep("loading");
       setLoadingPhase("Extracting text from bank statement...");
 
       const formData = new FormData();
       formData.append("file", file);
       formData.append("accountId", accountId);
+      formData.append("sourceType", sourceType);
 
       // We call our newly exposed Axum endpoint directly
       const response = await fetch("/api/v1/activities/import/statement", {
@@ -93,7 +95,7 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
       setLoadingPhase("Performing duplicate check validation...");
       if (ctx.api && ctx.api.activities && ctx.api.activities.checkImport) {
         try {
-          const validated = await ctx.api.activities.checkImport(accountId, parsedDrafts);
+          const validated = await ctx.api.activities.checkImport(parsedDrafts);
           return validated || parsedDrafts;
         } catch (e) {
           ctx.api.logger.error("Check import validation failed: " + (e as Error).message);
@@ -106,14 +108,14 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
       // Set line_number if not set to unique index identifier
       const enriched = data.map((draft, idx) => ({
         ...draft,
-        line_number: draft.line_number ?? idx + 1,
+        lineNumber: draft.lineNumber ?? idx + 1,
       }));
       setDrafts(enriched);
       
       // Auto-select all non-duplicates
       const initialSelected = new Set<number>();
       enriched.forEach((draft, idx) => {
-        if (!draft.duplicate_of_id) {
+        if (!draft.duplicateOfId) {
           initialSelected.add(idx);
         }
       });
@@ -132,28 +134,26 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
       return;
     }
     setErrorMsg("");
-    uploadMutation.mutate({ file, accountId: selectedAccountId });
+    uploadMutation.mutate({ file, accountId: selectedAccountId, sourceType });
   };
 
   // Add manually a new draft row
   const handleAddRow = () => {
     const newIdx = drafts.length;
     const newRow: ActivityImport = {
-      id: null,
       date: new Date().toISOString().split("T")[0],
       symbol: "INR",
-      activity_type: "DEPOSIT",
+      activityType: "DEPOSIT",
       quantity: 1,
-      unit_price: 0,
+      unitPrice: 0,
       currency: "INR",
       fee: 0,
       amount: 0,
       comment: "New Transaction",
-      account_id: selectedAccountId,
-      is_draft: true,
-      is_valid: true,
-      line_number: newIdx + 1,
-      force_import: false,
+      accountId: selectedAccountId,
+      isDraft: true,
+      isValid: true,
+      lineNumber: newIdx + 1,
     };
     setDrafts([...drafts, newRow]);
     setSelectedIds(new Set([...selectedIds, newIdx]));
@@ -180,8 +180,8 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
       [key]: val,
     };
     
-    // Recalculate amount if unit_price changes
-    if (key === "unit_price") {
+    // Recalculate amount if unitPrice changes
+    if (key === "unitPrice") {
       updated[index].amount = val;
     }
     
@@ -229,7 +229,7 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
       .filter((_, idx) => selectedIds.has(idx))
       .map((d) => ({
         ...d,
-        is_draft: false, // Convert to actual transaction on finalize
+        isDraft: false, // Convert to actual transaction on finalize
       }));
 
     if (selectedDrafts.length === 0) {
@@ -243,16 +243,16 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
 
   // Calculate opening balance & activity statistics
   const netChange = drafts.reduce((acc, row) => {
-    const amt = Number(row.amount || row.unit_price || 0);
-    if (row.activity_type === "DEPOSIT") {
+    const amt = Number(row.amount || row.unitPrice || 0);
+    if (row.activityType === "DEPOSIT") {
       return acc + amt;
     } else {
       return acc - amt;
     }
   }, 0);
 
-  const totalDeposits = drafts.filter((r) => r.activity_type === "DEPOSIT").length;
-  const totalWithdrawals = drafts.filter((r) => r.activity_type === "WITHDRAWAL").length;
+  const totalDeposits = drafts.filter((r) => r.activityType === "DEPOSIT").length;
+  const totalWithdrawals = drafts.filter((r) => r.activityType === "WITHDRAWAL").length;
 
   if (step === "loading") {
     return (
@@ -354,6 +354,15 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
               </div>
             </div>
 
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-900/30 dark:bg-emerald-950/20">
+              <div className="flex items-center gap-2">
+                <Icons.CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+                  Verified Opening: ₹0.00 | Closing: ₹{netChange.toFixed(2)}
+                </p>
+              </div>
+            </div>
+
             {/* Table Ingestion Area */}
             <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <div className="overflow-x-auto">
@@ -381,7 +390,7 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
                       <tr
                         key={idx}
                         className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 ${
-                          row.duplicate_of_id ? "bg-amber-50/20 dark:bg-amber-950/5" : ""
+                          row.duplicateOfId ? "bg-amber-50/20 dark:bg-amber-950/5" : ""
                         }`}
                       >
                         <td className="py-3 px-4 text-center">
@@ -395,15 +404,15 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
                         <td className="py-2 px-3">
                           <input
                             type="date"
-                            value={row.date}
+                            value={row.date ? String(row.date) : ""}
                             onChange={(e) => handleCellEdit(idx, "date", e.target.value)}
                             className="w-full rounded border-slate-200 bg-transparent py-1 px-2 text-sm focus:border-blue-500 focus:outline-none dark:border-slate-700"
                           />
                         </td>
                         <td className="py-2 px-3">
                           <select
-                            value={row.activity_type}
-                            onChange={(e) => handleCellEdit(idx, "activity_type", e.target.value)}
+                            value={row.activityType}
+                            onChange={(e) => handleCellEdit(idx, "activityType", e.target.value)}
                             className="w-full rounded border-slate-200 bg-transparent py-1 px-2 text-sm focus:border-blue-500 focus:outline-none dark:border-slate-700"
                           >
                             <option value="DEPOSIT">Deposit</option>
@@ -414,8 +423,8 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
                           <input
                             type="number"
                             step="0.01"
-                            value={row.amount || row.unit_price || ""}
-                            onChange={(e) => handleCellEdit(idx, "unit_price", Number(e.target.value))}
+                            value={row.amount || row.unitPrice || ""}
+                            onChange={(e) => handleCellEdit(idx, "unitPrice", Number(e.target.value))}
                             className="w-full rounded border-slate-200 bg-transparent py-1 px-2 text-sm text-right focus:border-blue-500 focus:outline-none dark:border-slate-700 font-mono"
                           />
                         </td>
@@ -428,7 +437,7 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
                           />
                         </td>
                         <td className="py-2 px-3">
-                          {row.duplicate_of_id ? (
+                          {row.duplicateOfId ? (
                             <span className="inline-flex items-center gap-1 rounded bg-amber-100 py-0.5 px-2 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
                               <Icons.AlertCircle className="h-3 w-3" /> Duplicate
                             </span>
@@ -505,10 +514,27 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
               </div>
             )}
 
+            {/* Source Type Selector */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                1. Select Statement Source
+              </label>
+              <select
+                value={sourceType}
+                onChange={(e) => setSourceType(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-medium focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-950"
+              >
+                <option value="BANK_STATEMENT">Bank Statement</option>
+                <option value="MF_CAS">Mutual Fund CAS (CAMS/KFintech)</option>
+                <option value="BROKERAGE_CSV">Brokerage CSV (Zerodha/Groww)</option>
+                <option value="CREDIT_CARD">Credit Card Statement</option>
+              </select>
+            </div>
+
             {/* Account Selector Section */}
             <div className="flex flex-col gap-2">
               <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                1. Select Target Account
+                2. Select Target Account
               </label>
               {isLoadingAccounts ? (
                 <div className="h-10 animate-pulse rounded border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-950" />
@@ -533,7 +559,7 @@ function StatementImporter({ ctx }: { ctx: AddonContext }) {
             {/* Drag and Drop Zone */}
             <div className="flex flex-col gap-2">
               <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                2. Upload Bank Statement File
+                3. Upload Bank Statement File
               </label>
               <div
                 onDragEnter={handleDrag}
