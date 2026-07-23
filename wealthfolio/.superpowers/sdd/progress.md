@@ -55,6 +55,7 @@
 | # | Task | Status | Commits | Notes |
 |---|------|--------|---------|-------|
 | P4-T1 | AI prompt enhancements & template learning engine | ✅ DONE (reviewed) | e0442da | Prompt rules, Gemini fallback, TemplateEngine & DB migration added; Approved |
+| P4-T2 | Opening balance auto-injection logic | ✅ DONE (reviewed) | 42fcecc | Auto-injects opening balance activity with date fallback & net-change computation; Approved |
 
 ## Recovery Notes
 
