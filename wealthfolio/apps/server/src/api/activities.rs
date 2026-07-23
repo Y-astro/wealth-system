@@ -490,6 +490,13 @@ async fn import_statement_endpoint(
             .unwrap_or_else(|| "0e64c3da-e5f5-4ef9-a5f3-84ebcb6eaa8a".to_string())
     });
 
+    if wealthfolio_core::importers::cams_cas::CamsCasParser::is_cams_kfintech_statement(&extracted_text) {
+        let activities = wealthfolio_core::importers::cams_cas::CamsCasParser::parse(&extracted_text, &target_account_id).map_err(|e| {
+            crate::error::ApiError::Internal(format!("Failed to parse CAMS CAS: {}", e))
+        })?;
+        return Ok(Json(activities));
+    }
+
     let templates = state.activity_service.list_import_templates()?;
     let engine = wealthfolio_core::importers::template_engine::TemplateEngine::new();
     if let Some(matched_template) = engine.match_template(&extracted_text, &templates) {
