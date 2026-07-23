@@ -58,6 +58,7 @@
 | P4-T2 | Opening balance auto-injection logic | ✅ DONE (reviewed) | 42fcecc | Auto-injects opening balance activity with date fallback & net-change computation; Approved |
 | P4-T3 | CAMS / KFintech CAS PDF statement parser | ✅ DONE (reviewed) | c9bf855 | CamsCasParser, auto-asset resolution & creation for missing MF schemes; Approved |
 | P4-T4 | Indian broker CSV parsers (Zerodha, Groww, AngelOne) | ✅ DONE (reviewed) | 08cfe27 | BrokerCsvParser, auto-asset creation & idempotency key tagging; Approved |
+| P4-T5 | Credit card parser & addon UI handoff | ✅ DONE (reviewed) | e496cc9 | CreditCardParser, source selector dropdown & balance verification badge; Approved |
 
 ## Recovery Notes
 
