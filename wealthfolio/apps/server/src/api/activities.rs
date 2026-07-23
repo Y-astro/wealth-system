@@ -984,10 +984,35 @@ mod tests {
         let service = MockAssetService { assets: std::sync::Mutex::new(vec![]) };
         let mut activities = vec![
             wealthfolio_core::activities::ActivityImport {
+                id: None,
+                date: "2023-01-01".to_string(),
                 symbol: "HDFC-FLEXI".to_string(),
+                activity_type: "BUY".to_string(),
+                quantity: None,
+                unit_price: None,
+                currency: "INR".to_string(),
+                fee: None,
+                amount: None,
+                comment: None,
+                account_id: None,
+                account_name: None,
                 symbol_name: Some("HDFC Flexi Cap Fund".to_string()),
+                exchange_mic: None,
+                quote_ccy: None,
+                instrument_type: None,
+                quote_mode: None,
+                errors: None,
+                warnings: None,
+                duplicate_of_id: None,
+                duplicate_of_line_number: None,
+                is_draft: true,
+                is_valid: true,
+                line_number: None,
+                fx_rate: None,
+                subtype: None,
+                force_import: false,
+                asset_id: None,
                 isin: Some("INF123456789".to_string()),
-                ..Default::default()
             }
         ];
 
