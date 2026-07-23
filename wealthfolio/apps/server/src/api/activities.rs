@@ -491,9 +491,12 @@ async fn import_statement_endpoint(
     });
 
     if wealthfolio_core::importers::cams_cas::CamsCasParser::is_cams_kfintech_statement(&extracted_text) {
-        let activities = wealthfolio_core::importers::cams_cas::CamsCasParser::parse(&extracted_text, &target_account_id).map_err(|e| {
+        let mut activities = wealthfolio_core::importers::cams_cas::CamsCasParser::parse(&extracted_text, &target_account_id).map_err(|e| {
             crate::error::ApiError::Internal(format!("Failed to parse CAMS CAS: {}", e))
         })?;
+
+        resolve_and_auto_create_cas_assets(&mut activities, state.asset_service.as_ref()).await?;
+
         return Ok(Json(activities));
     }
 
@@ -756,6 +759,65 @@ async fn import_statement_endpoint(
     Ok(Json(import_activities))
 }
 
+pub async fn resolve_and_auto_create_cas_assets(
+    activities: &mut Vec<wealthfolio_core::activities::ActivityImport>,
+    asset_service: &dyn wealthfolio_core::assets::AssetServiceTrait,
+) -> crate::error::ApiResult<()> {
+    let existing_assets = asset_service.get_assets().map_err(|e| {
+        crate::error::ApiError::Internal(format!("Failed to get assets: {}", e))
+    })?;
+
+    let mut symbol_to_asset_id: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+
+    for act in activities {
+        let symbol_key = act.symbol.clone();
+
+        if let Some(asset_id) = symbol_to_asset_id.get(&symbol_key) {
+            act.asset_id = Some(asset_id.clone());
+            continue;
+        }
+
+        let matched_asset = existing_assets.iter().find(|a| {
+            let a_symbol = a.instrument_symbol.as_deref().unwrap_or("");
+            let a_name = a.name.as_deref().unwrap_or("");
+            let act_name = act.symbol_name.as_deref().unwrap_or("");
+            let act_isin = act.isin.as_deref().unwrap_or("");
+
+            a_symbol == act.symbol ||
+            (!act_isin.is_empty() && a_symbol == act_isin) ||
+            (!act_name.is_empty() && a_name == act_name) ||
+            (a.display_code.as_deref().unwrap_or("") == act.symbol)
+        });
+
+        if let Some(asset) = matched_asset {
+            act.asset_id = Some(asset.id.clone());
+            symbol_to_asset_id.insert(symbol_key, asset.id.clone());
+        } else {
+            let new_asset = wealthfolio_core::assets::NewAsset {
+                id: None,
+                kind: wealthfolio_core::assets::AssetKind::Investment,
+                name: act.symbol_name.clone().or_else(|| Some(act.symbol.clone())),
+                display_code: act.isin.clone().or_else(|| Some(act.symbol.clone())),
+                is_active: true,
+                quote_mode: wealthfolio_core::assets::QuoteMode::Market,
+                quote_ccy: "INR".to_string(),
+                instrument_type: Some(wealthfolio_core::assets::InstrumentType::Equity),
+                instrument_symbol: Some(act.isin.clone().unwrap_or_else(|| act.symbol.clone())),
+                instrument_exchange_mic: None,
+                provider_config: None,
+                notes: None,
+                metadata: None,
+            };
+
+            if let Ok(created) = asset_service.create_asset(new_asset).await {
+                act.asset_id = Some(created.id.clone());
+                symbol_to_asset_id.insert(symbol_key, created.id.clone());
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn inject_opening_balance_activity(
     import_activities: &mut Vec<ActivityImport>,
     closing_balance: Option<rust_decimal::Decimal>,
@@ -880,6 +942,62 @@ mod tests {
         assert_eq!(injected.activity_type, "DEPOSIT");
         assert_eq!(injected.amount, Some(rust_decimal::Decimal::new(80, 0))); // 100 - 20 = 80
         assert_eq!(injected.comment.as_deref(), Some("Opening Balance auto-injected from statement"));
+    }
+
+    #[tokio::test]
+    async fn test_resolve_and_auto_create_cas_assets() {
+        struct MockAssetService {
+            assets: std::sync::Mutex<Vec<wealthfolio_core::assets::Asset>>,
+        }
+        
+        #[async_trait::async_trait]
+        impl wealthfolio_core::assets::AssetServiceTrait for MockAssetService {
+            fn get_assets(&self) -> wealthfolio_core::errors::Result<Vec<wealthfolio_core::assets::Asset>> {
+                Ok(self.assets.lock().unwrap().clone())
+            }
+            
+            async fn create_asset(&self, new_asset: wealthfolio_core::assets::NewAsset) -> wealthfolio_core::errors::Result<wealthfolio_core::assets::Asset> {
+                let asset = wealthfolio_core::assets::Asset {
+                    id: "new-id-123".to_string(),
+                    instrument_symbol: new_asset.instrument_symbol.clone(),
+                    name: new_asset.name.clone(),
+                    ..Default::default()
+                };
+                self.assets.lock().unwrap().push(asset.clone());
+                Ok(asset)
+            }
+            
+            // Dummy implementations for other methods
+            fn get_asset_by_id(&self, _id: &str) -> wealthfolio_core::errors::Result<wealthfolio_core::assets::Asset> { unimplemented!() }
+            async fn delete_asset(&self, _id: &str) -> wealthfolio_core::errors::Result<()> { unimplemented!() }
+            async fn update_asset_profile(&self, _id: &str, _payload: wealthfolio_core::assets::UpdateAssetProfile) -> wealthfolio_core::errors::Result<wealthfolio_core::assets::Asset> { unimplemented!() }
+            async fn get_or_create_minimal_asset(&self, _id: &str, _ccy: Option<String>, _m: Option<wealthfolio_core::assets::AssetMetadata>, _qm: Option<String>) -> wealthfolio_core::errors::Result<wealthfolio_core::assets::Asset> { unimplemented!() }
+            async fn update_quote_mode(&self, _id: &str, _qm: &str) -> wealthfolio_core::errors::Result<wealthfolio_core::assets::Asset> { unimplemented!() }
+            async fn get_assets_by_asset_ids(&self, _ids: &[String]) -> wealthfolio_core::errors::Result<Vec<wealthfolio_core::assets::Asset>> { unimplemented!() }
+            async fn enrich_asset_profile(&self, _id: &str) -> wealthfolio_core::errors::Result<wealthfolio_core::assets::Asset> { unimplemented!() }
+            async fn enrich_assets(&self, _ids: Vec<String>) -> wealthfolio_core::errors::Result<(usize, usize, usize)> { unimplemented!() }
+            async fn cleanup_legacy_metadata(&self, _id: &str) -> wealthfolio_core::errors::Result<()> { unimplemented!() }
+            async fn merge_unknown_asset(&self, _r: &str, _u: &str, _repo: &dyn wealthfolio_core::activities::ActivityRepositoryTrait) -> wealthfolio_core::errors::Result<u32> { unimplemented!() }
+            async fn ensure_assets(&self, _specs: Vec<wealthfolio_core::assets::AssetSpec>, _repo: &dyn wealthfolio_core::activities::ActivityRepositoryTrait) -> wealthfolio_core::errors::Result<wealthfolio_core::assets::EnsureAssetsResult> { unimplemented!() }
+        }
+
+        let service = MockAssetService { assets: std::sync::Mutex::new(vec![]) };
+        let mut activities = vec![
+            wealthfolio_core::activities::ActivityImport {
+                symbol: "HDFC-FLEXI".to_string(),
+                symbol_name: Some("HDFC Flexi Cap Fund".to_string()),
+                isin: Some("INF123456789".to_string()),
+                ..Default::default()
+            }
+        ];
+
+        let res = resolve_and_auto_create_cas_assets(&mut activities, &service).await;
+        assert!(res.is_ok());
+
+        assert_eq!(activities[0].asset_id, Some("new-id-123".to_string()));
+        let assets = service.assets.lock().unwrap();
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].name.as_deref(), Some("HDFC Flexi Cap Fund"));
     }
 
     #[test]
