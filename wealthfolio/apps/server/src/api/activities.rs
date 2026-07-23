@@ -500,6 +500,18 @@ async fn import_statement_endpoint(
         return Ok(Json(activities));
     }
 
+    if wealthfolio_core::importers::broker_csv::BrokerCsvParser::detect_broker(&extracted_text) != wealthfolio_core::importers::broker_csv::BrokerType::Unknown {
+        let mut activities = wealthfolio_core::importers::broker_csv::BrokerCsvParser::parse(&extracted_text, &target_account_id).map_err(|e| {
+            crate::error::ApiError::Internal(format!("Failed to parse broker CSV: {}", e))
+        })?;
+
+        wealthfolio_core::importers::broker_csv::resolve_and_auto_create_broker_assets(&mut activities, state.asset_service.as_ref()).await.map_err(|e| {
+            crate::error::ApiError::Internal(format!("Failed to resolve broker assets: {}", e))
+        })?;
+
+        return Ok(Json(activities));
+    }
+
     let templates = state.activity_service.list_import_templates()?;
     let engine = wealthfolio_core::importers::template_engine::TemplateEngine::new();
     if let Some(matched_template) = engine.match_template(&extracted_text, &templates) {
