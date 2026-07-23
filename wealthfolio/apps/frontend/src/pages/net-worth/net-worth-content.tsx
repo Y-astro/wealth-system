@@ -269,8 +269,8 @@ function CompositionWidget({ data, isLoading, currency = "USD" }: CompositionWid
                 ))}
               </Pie>
               <RechartsTooltip 
-                formatter={(value: number) => 
-                  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value)
+                formatter={(value: any) => 
+                  new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(Number(value || 0))
                 }
               />
             </PieChart>

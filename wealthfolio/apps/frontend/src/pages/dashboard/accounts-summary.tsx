@@ -658,13 +658,13 @@ export const AccountsSummary = React.memo(
                   innerRadius={50}
                   stroke="none"
                 >
-                  {pieData.map((entry, index) => (
+                  {pieData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
                 <RechartsTooltip 
-                  formatter={(value: number) => 
-                    new Intl.NumberFormat('en-US', { style: 'currency', currency: settings?.baseCurrency ?? 'USD' }).format(value)
+                  formatter={(value: any) => 
+                    new Intl.NumberFormat('en-US', { style: 'currency', currency: settings?.baseCurrency ?? 'USD' }).format(Number(value || 0))
                   }
                 />
               </PieChart>

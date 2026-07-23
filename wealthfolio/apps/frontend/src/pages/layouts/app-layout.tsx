@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { MobileNavigationContainer } from "@/pages/layouts/mobile-navigation-container";
 import useGlobalEventListener from "@/use-global-event-listener";
 import { ApplicationShell, ErrorBoundary, PageScrollContainer } from "@wealthfolio/ui";
-import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { useNavigation } from "./navigation/app-navigation";
 import { AppSidebar } from "./navigation/app-sidebar";
 import { FloatingNavigationBar } from "./navigation/floating-navigation-bar";
@@ -18,7 +18,7 @@ import { MobileNavBar } from "./navigation/mobile-navbar";
 import { NavigationModeProvider, useNavigationMode } from "./navigation/navigation-mode-context";
 
 const AppLayoutContent = () => {
-  const { data: settings, isSuccess: isSettingsReady } = useSettings();
+  const { isSuccess: isSettingsReady } = useSettings();
   const location = useLocation();
   const navigation = useNavigation();
   const { isMobile } = usePlatform();

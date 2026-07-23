@@ -1,4 +1,3 @@
-import { isWeb } from "@/adapters";
 import { AuthProvider } from "@/context/auth-context";
 import { WealthfolioConnectProvider } from "@/features/wealthfolio-connect";
 import { SettingsProvider } from "@/lib/settings-provider";
@@ -21,8 +20,6 @@ function App() {
         },
       }),
   );
-
-  const isWebEnv = isWeb;
 
   // Make QueryClient available globally for addons
   window.__wealthfolio_query_client__ = queryClient;
