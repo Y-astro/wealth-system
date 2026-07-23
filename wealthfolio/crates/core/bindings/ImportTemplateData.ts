@@ -4,5 +4,6 @@ import type { ImportTemplateScope } from "./ImportTemplateScope";
 import type { ParseConfig } from "./ParseConfig";
 import type { SymbolMappingMeta } from "./SymbolMappingMeta";
 import type { TemplateKind } from "./TemplateKind";
+import type { TemplateSignature } from "./TemplateSignature";
 
-export type ImportTemplateData = { id: string, name: string, scope: ImportTemplateScope, kind: TemplateKind, fieldMappings: { [key in string]: FieldMappingValue }, activityMappings: { [key in string]: Array<string> }, symbolMappings: { [key in string]: string }, accountMappings: { [key in string]: string }, symbolMappingMeta?: { [key in string]: SymbolMappingMeta }, parseConfig?: ParseConfig | null, };
+export type ImportTemplateData = { id: string, name: string, scope: ImportTemplateScope, kind: TemplateKind, fieldMappings: { [key in string]: FieldMappingValue }, activityMappings: { [key in string]: Array<string> }, symbolMappings: { [key in string]: string }, accountMappings: { [key in string]: string }, symbolMappingMeta?: { [key in string]: SymbolMappingMeta }, parseConfig?: ParseConfig | null, templateSignature?: TemplateSignature | null, };

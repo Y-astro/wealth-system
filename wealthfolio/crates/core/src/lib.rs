@@ -25,6 +25,7 @@ pub mod taxonomies;
 pub mod tax;
 pub mod expenses;
 pub mod utils;
+pub mod importers;
 
 // Re-export common types from asset and portfolio modules
 pub use assets::*;

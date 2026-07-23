@@ -383,6 +383,8 @@ struct LlmActivity {
 #[derive(serde::Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct LlmOutput {
+    opening_balance: Option<rust_decimal::Decimal>,
+    opening_balance_date: Option<String>,
     closing_balance: Option<rust_decimal::Decimal>,
     closing_balance_date: Option<String>,
     activities: Vec<LlmActivity>,
@@ -480,6 +482,23 @@ async fn import_statement_endpoint(
 
     // 3. Resolve active accounts context
     let accounts = state.account_service.get_all_accounts()?;
+    
+    let target_account_id = account_id.unwrap_or_else(|| {
+        accounts
+            .first()
+            .map(|a| a.id.clone())
+            .unwrap_or_else(|| "0e64c3da-e5f5-4ef9-a5f3-84ebcb6eaa8a".to_string())
+    });
+
+    let templates = state.activity_service.list_import_templates()?;
+    let engine = wealthfolio_core::importers::template_engine::TemplateEngine::new();
+    if let Some(matched_template) = engine.match_template(&extracted_text, &templates) {
+        let activities = engine.extract_with_template(&extracted_text, matched_template, &target_account_id).map_err(|e| {
+            crate::error::ApiError::Internal(format!("Template extraction failed: {}", e))
+        })?;
+        return Ok(Json(activities));
+    }
+
     let accounts_context = accounts
         .iter()
         .map(|a| format!("- Name: {}, ID: {}, Currency: {}", a.name, a.id, a.currency))
@@ -519,8 +538,8 @@ async fn import_statement_endpoint(
            - **NEVER** use the 'Balance' column as the transaction amount.\n   \
            - The transaction amount is in either the 'Withdrawal/Debit' or 'Deposit/Credit' column.\n\
         2. **Mandatory Fields for Activities**:\n   \
-           - `date`: ISO format (YYYY-MM-DD).\n   \
-           - `activityType`: MUST be either \"DEPOSIT\" or \"WITHDRAWAL\" (for bank statements).\n   \
+           - `date`: Strict ISO format (YYYY-MM-DD) for all activities.\n   \
+           - `activityType`: MUST be strictly \"DEPOSIT\" or \"WITHDRAWAL\".\n   \
            - `symbol`: Use the currency code (e.g., \"USD\", \"INR\").\n   \
            - `quantity`: Always use 1.\n   \
            - `unitPrice`: The absolute amount of the transaction.\n   \
@@ -529,9 +548,12 @@ async fn import_statement_endpoint(
            - `accountId`: Choose the best matching Account ID from the list above.\n   \
            - `isDraft`: false.\n   \
            - `isValid`: true.\n\
-        3. **Closing Balance**: You MUST extract the final closing balance on the statement and include it as `closingBalance`. Also provide the statement's ending date as `closingBalanceDate`.\n\n\
+        3. **Balances**: You MUST extract the final closing balance on the statement and include it as `closingBalance` (number) and `closingBalanceDate` (YYYY-MM-DD string).\n   \
+           - Also extract the starting balance as `openingBalance` (number) and `openingBalanceDate` (YYYY-MM-DD string) if present.\n\n\
         ### EXPECTED JSON SCHEMA:\n\
         {{\n  \
+          \"openingBalance\": 1000.00,\n  \
+          \"openingBalanceDate\": \"YYYY-MM-DD\",\n  \
           \"closingBalance\": 12345.67,\n  \
           \"closingBalanceDate\": \"YYYY-MM-DD\",\n  \
           \"activities\": [\n    \
@@ -654,13 +676,6 @@ async fn import_statement_endpoint(
     })?;
 
     // 6. Map parsed activities to ActivityImport structure
-    let target_account_id = account_id.unwrap_or_else(|| {
-        accounts
-            .first()
-            .map(|a| a.id.clone())
-            .unwrap_or_else(|| "0e64c3da-e5f5-4ef9-a5f3-84ebcb6eaa8a".to_string())
-    });
-
     let mut import_activities = Vec::new();
     let mut net_change = rust_decimal::Decimal::ZERO;
 
@@ -751,6 +766,22 @@ async fn import_statement_endpoint(
             isin: None,
         });
     }
+
+    // 8. Save template signature for future matches
+    let new_template = wealthfolio_core::activities::ImportTemplateData {
+        id: format!("tmpl-{}", uuid::Uuid::new_v4()),
+        name: "Auto AI Template".to_string(),
+        scope: wealthfolio_core::activities::ImportTemplateScope::User,
+        kind: wealthfolio_core::activities::TemplateKind::CsvActivity,
+        field_mappings: Default::default(),
+        activity_mappings: Default::default(),
+        symbol_mappings: Default::default(),
+        account_mappings: Default::default(),
+        symbol_mapping_meta: Default::default(),
+        parse_config: None,
+        template_signature: Some(engine.extract_signature(&extracted_text)),
+    };
+    let _ = state.activity_service.save_import_template(new_template).await;
 
     Ok(Json(import_activities))
 }

@@ -832,6 +832,8 @@ pub struct ImportTemplateData {
     pub symbol_mapping_meta: std::collections::HashMap<String, SymbolMappingMeta>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parse_config: Option<ParseConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub template_signature: Option<crate::importers::template_engine::TemplateSignature>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -1041,6 +1043,7 @@ impl Default for ImportTemplateData {
             account_mappings: mapping.account_mappings,
             symbol_mapping_meta: mapping.symbol_mapping_meta,
             parse_config: mapping.parse_config,
+            template_signature: None,
         }
     }
 }
@@ -1105,6 +1108,7 @@ impl ImportTemplate {
             account_mappings: config.account_mappings,
             symbol_mapping_meta: config.symbol_mapping_meta,
             parse_config: config.parse_config,
+            template_signature: None,
         })
     }
 
