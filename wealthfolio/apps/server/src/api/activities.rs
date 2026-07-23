@@ -721,19 +721,68 @@ async fn import_statement_endpoint(
     }
 
     // 7. Inject Opening Balance transaction if closingBalance is provided
-    if let Some(closing_balance) = llm_output.closing_balance {
-        let opening_balance = closing_balance - net_change;
-        let earliest_date = import_activities
-            .iter()
-            .map(|a| a.date.as_str())
-            .min()
-            .unwrap_or("2000-01-01")
-            .to_string();
+    inject_opening_balance_activity(
+        &mut import_activities,
+        llm_output.closing_balance,
+        llm_output.opening_balance,
+        llm_output.opening_balance_date,
+        net_change,
+        &target_account_id,
+    );
+
+    // 8. Save template signature for future matches
+    let new_template = wealthfolio_core::activities::ImportTemplateData {
+        id: format!("tmpl-{}", uuid::Uuid::new_v4()),
+        name: "Auto AI Template".to_string(),
+        scope: wealthfolio_core::activities::ImportTemplateScope::User,
+        kind: wealthfolio_core::activities::TemplateKind::CsvActivity,
+        field_mappings: Default::default(),
+        activity_mappings: Default::default(),
+        symbol_mappings: Default::default(),
+        account_mappings: Default::default(),
+        symbol_mapping_meta: Default::default(),
+        parse_config: None,
+        template_signature: Some(engine.extract_signature(&extracted_text)),
+    };
+    let _ = state.activity_service.save_import_template(new_template).await;
+
+    Ok(Json(import_activities))
+}
+
+pub fn inject_opening_balance_activity(
+    import_activities: &mut Vec<ActivityImport>,
+    closing_balance: Option<rust_decimal::Decimal>,
+    opening_balance: Option<rust_decimal::Decimal>,
+    opening_balance_date: Option<String>,
+    net_change: rust_decimal::Decimal,
+    target_account_id: &str,
+) {
+    if let Some(closing_balance) = closing_balance {
+        let opening_balance = opening_balance.unwrap_or_else(|| closing_balance - net_change);
+        
+        let mut final_date = opening_balance_date.clone();
+        if final_date.is_none() {
+            let earliest_date_str = import_activities
+                .iter()
+                .map(|a| a.date.as_str())
+                .min()
+                .unwrap_or("2000-01-01");
+                
+            if let Ok(parsed_date) = chrono::NaiveDate::parse_from_str(earliest_date_str, "%Y-%m-%d") {
+                let prev_day = parsed_date - chrono::Duration::try_days(1).unwrap_or(chrono::Duration::days(1));
+                final_date = Some(prev_day.format("%Y-%m-%d").to_string());
+            } else {
+                final_date = Some(earliest_date_str.to_string());
+            }
+        }
+        let date_to_use = final_date.unwrap_or_else(|| "2000-01-01".to_string());
+        
+        let currency = import_activities.first().map(|a| a.currency.clone()).unwrap_or_else(|| "USD".to_string());
 
         import_activities.insert(0, ActivityImport {
             id: None,
-            date: earliest_date,
-            symbol: "INR".to_string(),
+            date: date_to_use,
+            symbol: currency.clone(),
             activity_type: if opening_balance >= rust_decimal::Decimal::ZERO {
                 "DEPOSIT".to_string()
             } else {
@@ -741,11 +790,11 @@ async fn import_statement_endpoint(
             },
             quantity: Some(rust_decimal::Decimal::ONE),
             unit_price: Some(opening_balance.abs()),
-            currency: "INR".to_string(),
+            currency: currency.clone(),
             fee: Some(rust_decimal::Decimal::ZERO),
             amount: Some(opening_balance.abs()),
-            comment: Some("Opening Balance".to_string()),
-            account_id: Some(target_account_id.clone()),
+            comment: Some("Opening Balance auto-injected from statement".to_string()),
+            account_id: Some(target_account_id.to_string()),
             account_name: None,
             symbol_name: None,
             exchange_mic: None,
@@ -766,24 +815,6 @@ async fn import_statement_endpoint(
             isin: None,
         });
     }
-
-    // 8. Save template signature for future matches
-    let new_template = wealthfolio_core::activities::ImportTemplateData {
-        id: format!("tmpl-{}", uuid::Uuid::new_v4()),
-        name: "Auto AI Template".to_string(),
-        scope: wealthfolio_core::activities::ImportTemplateScope::User,
-        kind: wealthfolio_core::activities::TemplateKind::CsvActivity,
-        field_mappings: Default::default(),
-        activity_mappings: Default::default(),
-        symbol_mappings: Default::default(),
-        account_mappings: Default::default(),
-        symbol_mapping_meta: Default::default(),
-        parse_config: None,
-        template_signature: Some(engine.extract_signature(&extracted_text)),
-    };
-    let _ = state.activity_service.save_import_template(new_template).await;
-
-    Ok(Json(import_activities))
 }
 
 pub fn router() -> Router<Arc<AppState>> {
@@ -822,4 +853,84 @@ pub fn router() -> Router<Arc<AppState>> {
             "/activities/import/check-duplicates",
             post(check_existing_duplicates),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal::Decimal;
+
+    #[test]
+    fn test_inject_opening_balance_computation() {
+        let mut activities = vec![];
+        let closing_balance = Some(rust_decimal::Decimal::new(100, 0));
+        let net_change = rust_decimal::Decimal::new(20, 0); // deposits - withdrawals
+        
+        inject_opening_balance_activity(&mut activities, closing_balance, None, None, net_change, "acc-1");
+        
+        assert_eq!(activities.len(), 1);
+        let injected = &activities[0];
+        assert_eq!(injected.activity_type, "DEPOSIT");
+        assert_eq!(injected.amount, Some(rust_decimal::Decimal::new(80, 0))); // 100 - 20 = 80
+        assert_eq!(injected.comment.as_deref(), Some("Opening Balance auto-injected from statement"));
+    }
+
+    #[test]
+    fn test_inject_opening_balance_provided() {
+        let mut activities = vec![];
+        let closing_balance = Some(rust_decimal::Decimal::new(100, 0));
+        let opening_balance = Some(rust_decimal::Decimal::new(50, 0));
+        let net_change = rust_decimal::Decimal::new(50, 0); 
+        
+        inject_opening_balance_activity(&mut activities, closing_balance, opening_balance, None, net_change, "acc-1");
+        
+        assert_eq!(activities.len(), 1);
+        let injected = &activities[0];
+        assert_eq!(injected.activity_type, "DEPOSIT");
+        assert_eq!(injected.amount, Some(rust_decimal::Decimal::new(50, 0))); 
+    }
+
+    #[test]
+    fn test_inject_opening_balance_date_fallback() {
+        let mut activities = vec![
+            ActivityImport {
+                id: None,
+                date: "2026-07-20".to_string(),
+                symbol: "USD".to_string(),
+                activity_type: "DEPOSIT".to_string(),
+                quantity: None,
+                unit_price: None,
+                currency: "USD".to_string(),
+                fee: None,
+                amount: None,
+                comment: None,
+                account_id: None,
+                account_name: None,
+                symbol_name: None,
+                exchange_mic: None,
+                quote_ccy: None,
+                instrument_type: None,
+                quote_mode: None,
+                errors: None,
+                warnings: None,
+                duplicate_of_id: None,
+                duplicate_of_line_number: None,
+                is_draft: false,
+                is_valid: true,
+                line_number: None,
+                fx_rate: None,
+                subtype: None,
+                force_import: false,
+                asset_id: None,
+                isin: None,
+            }
+        ];
+        let closing_balance = Some(rust_decimal::Decimal::new(100, 0));
+        
+        inject_opening_balance_activity(&mut activities, closing_balance, Some(rust_decimal::Decimal::new(50, 0)), None, rust_decimal::Decimal::new(0, 0), "acc-1");
+        
+        assert_eq!(activities.len(), 2);
+        let injected = &activities[0]; // because insert(0)
+        assert_eq!(injected.date, "2026-07-19");
+    }
 }
