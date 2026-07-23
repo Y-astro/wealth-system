@@ -562,42 +562,77 @@ async fn import_statement_endpoint(
         "temperature": 0.0
     });
 
-    let llm_res = client
+    let mut content_opt = None;
+
+    let llm_res_result = client
         .post(format!("{}/v1/chat/completions", lm_studio_base))
         .json(&payload)
         .send()
-        .await
-        .map_err(|e| {
-            crate::error::ApiError::Internal(format!("Failed to connect to LM Studio: {}", e))
-        })?;
+        .await;
 
-    if !llm_res.status().is_success() {
-        let err_status = llm_res.status();
-        let err_text = llm_res.text().await.unwrap_or_default();
-        return Err(crate::error::ApiError::Internal(format!(
-            "LM Studio returned status {}: {}",
-            err_status, err_text
-        )));
+    if let Ok(llm_res) = llm_res_result {
+        if llm_res.status().is_success() {
+            if let Ok(llm_json) = llm_res.json::<serde_json::Value>().await {
+                if let Some(c) = llm_json
+                    .get("choices")
+                    .and_then(|c| c.as_array())
+                    .and_then(|a| a.first())
+                    .and_then(|m| m.get("message"))
+                    .and_then(|msg| msg.get("content"))
+                    .and_then(|c| c.as_str())
+                {
+                    content_opt = Some(c.trim().to_string());
+                }
+            }
+        }
     }
 
-    let llm_json = llm_res
-        .json::<serde_json::Value>()
-        .await
-        .map_err(|e| {
-            crate::error::ApiError::Internal(format!("Failed to parse LM Studio response JSON: {}", e))
-        })?;
+    // Fallback to Gemini if LM Studio failed or was unreachable
+    if content_opt.is_none() {
+        if let Ok(api_key) = std::env::var("GEMINI_API_KEY") {
+            let gemini_url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={}", api_key);
+            let gemini_payload = serde_json::json!({
+                "system_instruction": {
+                    "parts": [{"text": prompt}]
+                },
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": extracted_text}
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.0,
+                    "response_mime_type": "application/json"
+                }
+            });
 
-    let content = llm_json
-        .get("choices")
-        .and_then(|c| c.as_array())
-        .and_then(|a| a.first())
-        .and_then(|m| m.get("message"))
-        .and_then(|msg| msg.get("content"))
-        .and_then(|c| c.as_str())
-        .ok_or_else(|| {
-            crate::error::ApiError::Internal("Invalid response structure from LM Studio".to_string())
-        })?
-        .trim();
+            if let Ok(gemini_res) = client.post(&gemini_url).json(&gemini_payload).send().await {
+                if gemini_res.status().is_success() {
+                    if let Ok(gemini_json) = gemini_res.json::<serde_json::Value>().await {
+                        if let Some(c) = gemini_json
+                            .get("candidates")
+                            .and_then(|c| c.as_array())
+                            .and_then(|a| a.first())
+                            .and_then(|c| c.get("content"))
+                            .and_then(|c| c.get("parts"))
+                            .and_then(|p| p.as_array())
+                            .and_then(|a| a.first())
+                            .and_then(|p| p.get("text"))
+                            .and_then(|t| t.as_str())
+                        {
+                            content_opt = Some(c.trim().to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let content = content_opt.ok_or_else(|| {
+        crate::error::ApiError::Internal("Failed to get a response from LM Studio and Gemini fallback".to_string())
+    })?;
 
     // Clean JSON content by slicing block boundaries
     let clean_json = if let Some(start_idx) = content.find('{').or_else(|| content.find('[')) {
