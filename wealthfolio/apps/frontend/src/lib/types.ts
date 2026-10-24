@@ -1718,7 +1718,10 @@ export type HealthCategory =
   | "CLASSIFICATION"
   | "DATA_CONSISTENCY"
   | "ACCOUNT_CONFIGURATION"
-  | "SETTINGS_CONFIGURATION";
+  | "SETTINGS_CONFIGURATION"
+  | "FD_MATURITY"
+  | "INSURANCE_PREMIUM_DUE"
+  | "SIP_MISSED_INSTALLMENT";
 
 /**
  * Navigation action for health issue resolution.

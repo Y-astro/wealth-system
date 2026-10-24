@@ -12,4 +12,6 @@ pub mod categorizer;
 pub mod models;
 pub mod service;
 
-pub use models::{ExpenseCategory, ExpenseCategoryRule, MatchType, SpendingAnalysis};
+pub use categorizer::{categorize, categorize_with_fallback, rule_matches, sort_rules_by_priority};
+pub use models::{ExpenseCategory, ExpenseCategoryRule, MatchType, MonthlySpend, SpendingAnalysis};
+pub use service::ExpenseCategorizerService;

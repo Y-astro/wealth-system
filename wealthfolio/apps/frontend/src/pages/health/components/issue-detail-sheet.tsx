@@ -56,6 +56,9 @@ const CATEGORY_LABELS: Record<HealthCategory, { label: string; description: stri
     description:
       "Some accounts need configuration before data can be synced. Set tracking mode to start importing data.",
   },
+  FD_MATURITY: { label: "FD Maturity", description: "Review fixed deposits approaching maturity." },
+  INSURANCE_PREMIUM_DUE: { label: "Insurance Premium", description: "Review upcoming insurance premium payments." },
+  SIP_MISSED_INSTALLMENT: { label: "SIP Installment", description: "Review missed scheduled SIP investments." },
   SETTINGS_CONFIGURATION: {
     label: "Settings",
     description:

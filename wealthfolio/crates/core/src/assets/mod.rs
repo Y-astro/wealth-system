@@ -7,6 +7,7 @@ mod asset_id;
 pub mod fixed_income_calculator;
 pub mod insurance_calculator;
 pub mod loan_calculator;
+pub mod vehicle_depreciation;
 mod assets_constants;
 mod assets_model;
 mod assets_service;
@@ -47,6 +48,7 @@ pub use classification_service::{
     classify_liquidity, classify_risk, AssetClassificationService, AssetClassifications,
     CategoryWithWeight,
 };
+pub use vehicle_depreciation::*;
 
 #[cfg(test)]
 mod preset_lifecycle_tests;

@@ -72,6 +72,12 @@ pub enum HealthCategory {
     AccountConfiguration,
     /// Issues related to application settings configuration (timezone, locale, etc.)
     SettingsConfiguration,
+    /// FDs or RDs approaching maturity within 30 days or already matured
+    FdMaturity,
+    /// Insurance policies with premiums due within 30 days or overdue
+    InsurancePremiumDue,
+    /// Active SIPs with missed/overdue installments
+    SipMissedInstallment,
 }
 
 impl HealthCategory {
@@ -84,6 +90,9 @@ impl HealthCategory {
             HealthCategory::DataConsistency => "DATA_CONSISTENCY",
             HealthCategory::AccountConfiguration => "ACCOUNT_CONFIGURATION",
             HealthCategory::SettingsConfiguration => "SETTINGS_CONFIGURATION",
+            HealthCategory::FdMaturity => "FD_MATURITY",
+            HealthCategory::InsurancePremiumDue => "INSURANCE_PREMIUM_DUE",
+            HealthCategory::SipMissedInstallment => "SIP_MISSED_INSTALLMENT",
         }
     }
 
@@ -96,6 +105,9 @@ impl HealthCategory {
             HealthCategory::DataConsistency => "Data Consistency",
             HealthCategory::AccountConfiguration => "Account Setup",
             HealthCategory::SettingsConfiguration => "Settings",
+            HealthCategory::FdMaturity => "FD/RD Maturity",
+            HealthCategory::InsurancePremiumDue => "Insurance Premiums",
+            HealthCategory::SipMissedInstallment => "SIP Installments",
         }
     }
 }

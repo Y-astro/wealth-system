@@ -20,8 +20,10 @@ use crate::taxonomies::TaxonomyServiceTrait;
 
 use super::checks::{
     AccountConfigurationCheck, AssetHoldingInfo, ClassificationCheck, ConsistencyIssueInfo,
-    DataConsistencyCheck, FxIntegrityCheck, FxPairInfo, LegacyMigrationInfo, PriceStalenessCheck,
-    QuoteSyncCheck, QuoteSyncErrorInfo, UnclassifiedAssetInfo, UnconfiguredAccountInfo,
+    DataConsistencyCheck, FdMaturityCheck, FxIntegrityCheck, FxPairInfo,
+    InsurancePremiumCheck, LegacyMigrationInfo, PriceStalenessCheck,
+    QuoteSyncCheck, QuoteSyncErrorInfo, SipHealthCheck, UnclassifiedAssetInfo,
+    UnconfiguredAccountInfo,
 };
 use super::errors::HealthError;
 use super::model::{FixAction, HealthConfig, HealthIssue, HealthStatus, IssueDismissal};
@@ -51,6 +53,9 @@ pub struct HealthService {
     classification_check: ClassificationCheck,
     consistency_check: DataConsistencyCheck,
     account_config_check: AccountConfigurationCheck,
+    fd_maturity_check: FdMaturityCheck,
+    insurance_premium_check: InsurancePremiumCheck,
+    sip_health_check: SipHealthCheck,
 }
 
 impl HealthService {
@@ -66,6 +71,9 @@ impl HealthService {
             classification_check: ClassificationCheck::new(),
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
+            fd_maturity_check: FdMaturityCheck::new(),
+            insurance_premium_check: InsurancePremiumCheck::new(),
+            sip_health_check: SipHealthCheck::new(),
         }
     }
 
@@ -84,6 +92,9 @@ impl HealthService {
             classification_check: ClassificationCheck::new(),
             consistency_check: DataConsistencyCheck::new(),
             account_config_check: AccountConfigurationCheck::new(),
+            fd_maturity_check: FdMaturityCheck::new(),
+            insurance_premium_check: InsurancePremiumCheck::new(),
+            sip_health_check: SipHealthCheck::new(),
         }
     }
 
@@ -189,6 +200,21 @@ impl HealthService {
             account_config_issues.len()
         );
         all_issues.extend(account_config_issues);
+
+        // Run FD maturity check
+        debug!("Running FD maturity check");
+        let fd_issues = self.fd_maturity_check.analyze(&[], &ctx);
+        all_issues.extend(fd_issues);
+
+        // Run insurance premium check
+        debug!("Running insurance premium check");
+        let insurance_issues = self.insurance_premium_check.analyze(&[], &ctx);
+        all_issues.extend(insurance_issues);
+
+        // Run SIP health check
+        debug!("Running SIP health check");
+        let sip_issues = self.sip_health_check.analyze(&[], &ctx);
+        all_issues.extend(sip_issues);
 
         // Filter out dismissed issues (unless data has changed)
         let filtered_issues = self.filter_dismissed_issues(all_issues).await?;
@@ -396,21 +422,43 @@ impl HealthService {
             .collect();
 
         // Run checks with gathered data
-        self.run_checks_with_data(
-            base_currency,
-            total_portfolio_value,
-            &all_holdings,
-            &latest_quote_times,
-            &quote_sync_errors,
-            &fx_pairs,
-            &unclassified_assets,
-            &consistency_issues,
-            &legacy_migration_info,
-            &unconfigured_accounts,
-            configured_timezone,
-            client_timezone,
-        )
-        .await
+        let status = self
+            .run_checks_with_data(
+                base_currency,
+                total_portfolio_value,
+                &all_holdings,
+                &latest_quote_times,
+                &quote_sync_errors,
+                &fx_pairs,
+                &unclassified_assets,
+                &consistency_issues,
+                &legacy_migration_info,
+                &unconfigured_accounts,
+                configured_timezone,
+                client_timezone,
+            )
+            .await?;
+
+        let ctx = HealthContext::new(self.config.read().await.clone(), base_currency, total_portfolio_value);
+        let all_assets = asset_service.get_assets().unwrap_or_default();
+
+        let extra_fd_issues = self.fd_maturity_check.analyze_assets(&all_assets, &ctx);
+        let extra_ins_issues = self.insurance_premium_check.analyze_assets(&all_assets, &ctx);
+
+        let filtered_fd = self.filter_dismissed_issues(extra_fd_issues).await?;
+        let filtered_ins = self.filter_dismissed_issues(extra_ins_issues).await?;
+
+        let mut issues = status.issues;
+        issues.extend(filtered_fd);
+        issues.extend(filtered_ins);
+
+        let final_status = HealthStatus::from_issues(issues);
+        *self.cached_status.write().await = Some(CachedStatus {
+            status: final_status.clone(),
+            cached_at: Utc::now(),
+        });
+
+        Ok(final_status)
     }
 
     /// Filters out issues that have been dismissed (unless their data has changed).

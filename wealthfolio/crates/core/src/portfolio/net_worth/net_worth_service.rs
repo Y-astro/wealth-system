@@ -71,7 +71,7 @@ impl NetWorthService {
     /// Determine the asset category based on AssetKind.
     fn categorize_by_asset_kind(kind: &AssetKind) -> AssetCategory {
         match kind {
-            AssetKind::Investment | AssetKind::PrivateEquity => AssetCategory::Investment,
+            AssetKind::Investment | AssetKind::PrivateEquity | AssetKind::DebtMf => AssetCategory::Investment,
             AssetKind::Property => AssetCategory::Property,
             AssetKind::Vehicle => AssetCategory::Vehicle,
             AssetKind::Collectible => AssetCategory::Collectible,

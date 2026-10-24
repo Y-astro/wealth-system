@@ -34,7 +34,7 @@ pub enum CapitalGainType {
 }
 
 /// Summary of capital gains for a financial year.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapitalGainsSummary {
     /// Financial year, e.g. "FY2025-26"

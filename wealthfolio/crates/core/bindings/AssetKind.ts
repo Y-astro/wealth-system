@@ -7,4 +7,4 @@
  * Market instruments are all `INVESTMENT`; the `instrument_type` field carries the
  * market-specific classification (EQUITY, CRYPTO, OPTION, etc.).
  */
-export type AssetKind = "INVESTMENT" | "PROPERTY" | "VEHICLE" | "COLLECTIBLE" | "PRECIOUS_METAL" | "PRIVATE_EQUITY" | "LIABILITY" | "OTHER" | "FX";
+export type AssetKind = "INVESTMENT" | "DEBT_MF" | "PROPERTY" | "VEHICLE" | "COLLECTIBLE" | "PRECIOUS_METAL" | "PRIVATE_EQUITY" | "LIABILITY" | "OTHER" | "FX";

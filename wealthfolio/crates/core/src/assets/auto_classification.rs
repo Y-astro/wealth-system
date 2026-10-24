@@ -130,7 +130,7 @@ fn map_kind_to_asset_class(kind: &AssetKind) -> Option<&'static str> {
         AssetKind::PreciousMetal => Some("COMMODITIES"),
         AssetKind::PrivateEquity => Some("ALTERNATIVES"),
         AssetKind::Vehicle | AssetKind::Collectible | AssetKind::Other => Some("ALTERNATIVES"),
-        AssetKind::Investment | AssetKind::Fx | AssetKind::Liability => None,
+        AssetKind::Investment | AssetKind::Fx | AssetKind::Liability | AssetKind::DebtMf => None,
     }
 }
 

@@ -24,12 +24,13 @@ pub use wealthfolio_market_data::InstrumentId;
 /// `kind` is a behavioral category — broad for market instruments, granular for alternatives.
 /// Market instruments are all `INVESTMENT`; the `instrument_type` field carries the
 /// market-specific classification (EQUITY, CRYPTO, OPTION, etc.).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, TS)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[ts(export)]
 pub enum AssetKind {
     #[default]
     Investment, // All tradable, lot-tracked market instruments (stocks, ETFs, crypto, options)
+    DebtMf,        // Debt mutual funds (specified mutual funds)
     Property,      // Real estate
     Vehicle,       // Cars, motorcycles, boats, RVs
     Collectible,   // Art, wine, watches, jewelry, memorabilia
@@ -241,6 +242,7 @@ impl AssetKind {
     pub const fn as_db_str(&self) -> &'static str {
         match self {
             AssetKind::Investment => "INVESTMENT",
+            AssetKind::DebtMf => "DEBT_MF",
             AssetKind::Property => "PROPERTY",
             AssetKind::Vehicle => "VEHICLE",
             AssetKind::Collectible => "COLLECTIBLE",
@@ -256,6 +258,7 @@ impl AssetKind {
     pub const fn display_name(&self) -> &'static str {
         match self {
             AssetKind::Investment => "Investment",
+            AssetKind::DebtMf => "Debt Mutual Fund",
             AssetKind::Property => "Property",
             AssetKind::Vehicle => "Vehicle",
             AssetKind::Collectible => "Collectible",

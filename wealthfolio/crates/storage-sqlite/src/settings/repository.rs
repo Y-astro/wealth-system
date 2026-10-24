@@ -53,6 +53,16 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 "sync_enabled" => {
                     settings.sync_enabled = value.parse().unwrap_or(true);
                 }
+                "inflation_rate" => {
+                    settings.inflation_rate = value.parse().unwrap_or(0.06);
+                }
+                "financial_year_start_month" => {
+                    settings.financial_year_start_month = value.parse().unwrap_or(4);
+                }
+                "tax_regime" => settings.tax_regime = value,
+                "enable_tax_deduction_tracking" => {
+                    settings.enable_tax_deduction_tracking = value.parse().unwrap_or(true);
+                }
                 _ => {} // Ignore unknown settings
             }
         }
@@ -144,6 +154,46 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         .map_err(StorageError::from)?;
                 }
 
+                if let Some(inflation_rate) = settings.inflation_rate {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: "inflation_rate".to_string(),
+                            setting_value: inflation_rate.to_string(),
+                        })
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                }
+
+                if let Some(financial_year_start_month) = settings.financial_year_start_month {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: "financial_year_start_month".to_string(),
+                            setting_value: financial_year_start_month.to_string(),
+                        })
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                }
+
+                if let Some(ref tax_regime) = settings.tax_regime {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: "tax_regime".to_string(),
+                            setting_value: tax_regime.clone(),
+                        })
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                }
+
+                if let Some(enable_tax_deduction_tracking) = settings.enable_tax_deduction_tracking {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: "enable_tax_deduction_tracking".to_string(),
+                            setting_value: enable_tax_deduction_tracking.to_string(),
+                        })
+                        .execute(conn)
+                        .map_err(StorageError::from)?;
+                }
+
                 Ok(())
             })
             .await
@@ -169,6 +219,10 @@ impl SettingsRepositoryTrait for SettingsRepository {
                     "auto_update_check_enabled" => "true",
                     "menu_bar_visible" => "true",
                     "sync_enabled" => "true",
+                    "inflation_rate" => "0.06",
+                    "financial_year_start_month" => "4",
+                    "tax_regime" => "NEW",
+                    "enable_tax_deduction_tracking" => "true",
                     _ => return Err(StorageError::from(diesel::result::Error::NotFound).into()),
                 };
                 Ok(default_value.to_string())

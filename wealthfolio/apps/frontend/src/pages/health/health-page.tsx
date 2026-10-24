@@ -58,6 +58,9 @@ const CATEGORY_CONFIG: Record<HealthCategory, { label: string; icon: keyof typeo
   DATA_CONSISTENCY: { label: "Data", icon: "Database" },
   ACCOUNT_CONFIGURATION: { label: "Accounts", icon: "Settings" },
   SETTINGS_CONFIGURATION: { label: "Settings", icon: "Settings" },
+  FD_MATURITY: { label: "FD/RD Maturity", icon: "Calendar" },
+  INSURANCE_PREMIUM_DUE: { label: "Insurance", icon: "Shield" },
+  SIP_MISSED_INSTALLMENT: { label: "SIP Installments", icon: "Clock" },
 };
 
 export function getCategoryConfig(issue: HealthIssue): { label: string; icon: keyof typeof Icons } {

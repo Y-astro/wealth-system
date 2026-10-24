@@ -22,6 +22,22 @@ pub trait SettingsServiceTrait: Send + Sync {
 
     fn is_sync_enabled(&self) -> Result<bool>;
 
+    fn get_inflation_rate(&self) -> Result<f64> {
+        Ok(0.06)
+    }
+
+    fn get_financial_year_start_month(&self) -> Result<u32> {
+        Ok(4)
+    }
+
+    fn get_tax_regime(&self) -> Result<String> {
+        Ok("NEW".to_string())
+    }
+
+    fn is_tax_deduction_tracking_enabled(&self) -> Result<bool> {
+        Ok(true)
+    }
+
     /// Get a single setting value by key. Returns None if not found.
     fn get_setting_value(&self, key: &str) -> Result<Option<String>>;
 
@@ -115,6 +131,44 @@ impl SettingsServiceTrait for SettingsService {
         match self.settings_repository.get_setting("sync_enabled") {
             Ok(value) => Ok(value.parse().unwrap_or(false)),
             Err(Error::Database(DatabaseError::NotFound(_))) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn get_inflation_rate(&self) -> Result<f64> {
+        match self.settings_repository.get_setting("inflation_rate") {
+            Ok(value) => Ok(value.parse().unwrap_or(0.06)),
+            Err(Error::Database(DatabaseError::NotFound(_))) => Ok(0.06),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn get_financial_year_start_month(&self) -> Result<u32> {
+        match self
+            .settings_repository
+            .get_setting("financial_year_start_month")
+        {
+            Ok(value) => Ok(value.parse().unwrap_or(4)),
+            Err(Error::Database(DatabaseError::NotFound(_))) => Ok(4),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn get_tax_regime(&self) -> Result<String> {
+        match self.settings_repository.get_setting("tax_regime") {
+            Ok(value) => Ok(value),
+            Err(Error::Database(DatabaseError::NotFound(_))) => Ok("NEW".to_string()),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn is_tax_deduction_tracking_enabled(&self) -> Result<bool> {
+        match self
+            .settings_repository
+            .get_setting("enable_tax_deduction_tracking")
+        {
+            Ok(value) => Ok(value.parse().unwrap_or(true)),
+            Err(Error::Database(DatabaseError::NotFound(_))) => Ok(true),
             Err(e) => Err(e),
         }
     }

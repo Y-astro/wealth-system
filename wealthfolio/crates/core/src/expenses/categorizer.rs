@@ -1,10 +1,4 @@
 //! Rule-based expense categorizer.
-//!
-//! TODO (Phase 5): Implement:
-//! 1. Load rules from database
-//! 2. For each transaction, apply rules in priority order (highest first)
-//! 3. Return matched category or "other" as fallback
-//! 4. Support user corrections that train new rules
 
 use super::models::{ExpenseCategoryRule, MatchType};
 
@@ -18,24 +12,48 @@ pub fn rule_matches(rule: &ExpenseCategoryRule, description: &str) -> bool {
         MatchType::Exact => desc_lower == pattern_lower,
         MatchType::StartsWith => desc_lower.starts_with(&pattern_lower),
         MatchType::Regex => {
-            // TODO (Phase 5): use regex crate
-            // For now, fall back to Contains
-            desc_lower.contains(&pattern_lower)
+            match regex::RegexBuilder::new(&rule.match_pattern)
+                .case_insensitive(true)
+                .build()
+            {
+                Ok(re) => re.is_match(description),
+                Err(_) => false,
+            }
         }
     }
 }
 
-/// Categorize a transaction description using a sorted list of rules.
+/// Sorts a slice of rules in-place by priority descending (highest priority first).
+pub fn sort_rules_by_priority(rules: &mut [ExpenseCategoryRule]) {
+    rules.sort_by(|a, b| b.priority.cmp(&a.priority));
+}
+
+/// Categorize a transaction description using a list of rules and a default fallback category.
 ///
-/// Rules must be sorted by priority descending (highest first).
-/// Returns the matched category_id, or "other" if no rule matches.
-pub fn categorize(description: &str, rules: &[ExpenseCategoryRule]) -> String {
-    for rule in rules {
+/// Rules are evaluated in priority descending order (highest priority first).
+/// Returns the matched category_id, or `default_cat` if no rule matches.
+pub fn categorize_with_fallback(
+    description: &str,
+    rules: &[ExpenseCategoryRule],
+    default_cat: &str,
+) -> String {
+    let mut sorted_rules: Vec<&ExpenseCategoryRule> = rules.iter().collect();
+    sorted_rules.sort_by(|a, b| b.priority.cmp(&a.priority));
+
+    for rule in sorted_rules {
         if rule_matches(rule, description) {
             return rule.category_id.clone();
         }
     }
-    "other".to_string()
+    default_cat.to_string()
+}
+
+/// Categorize a transaction description using a sorted list of rules.
+///
+/// Rules are evaluated in priority descending order (highest priority first).
+/// Returns the matched category_id, or "other" if no rule matches.
+pub fn categorize(description: &str, rules: &[ExpenseCategoryRule]) -> String {
+    categorize_with_fallback(description, rules, "other")
 }
 
 #[cfg(test)]
@@ -43,7 +61,12 @@ mod tests {
     use super::*;
     use crate::expenses::models::{ExpenseCategoryRule, MatchType};
 
-    fn make_rule(pattern: &str, match_type: MatchType, category_id: &str, priority: i32) -> ExpenseCategoryRule {
+    fn make_rule(
+        pattern: &str,
+        match_type: MatchType,
+        category_id: &str,
+        priority: i32,
+    ) -> ExpenseCategoryRule {
         ExpenseCategoryRule {
             id: "r1".to_string(),
             category_id: category_id.to_string(),
@@ -76,6 +99,47 @@ mod tests {
     }
 
     #[test]
+    fn test_regex_match() {
+        let rule = make_rule(r"^UPI/.*ZOMATO.*", MatchType::Regex, "dining", 100);
+        assert!(rule_matches(&rule, "UPI/123456/ZOMATO/ORDER"));
+        assert!(rule_matches(&rule, "upi/98765/zomato_pay"));
+        assert!(!rule_matches(&rule, "POS ZOMATO STORE"));
+        assert!(!rule_matches(&rule, "UPI/123456/SWIGGY/ORDER"));
+    }
+
+    #[test]
+    fn test_invalid_regex_handling() {
+        let rule = make_rule(r"[unclosed_bracket", MatchType::Regex, "dining", 100);
+        assert!(!rule_matches(&rule, "SOME DESCRIPTION"));
+    }
+
+    #[test]
+    fn test_sort_rules_by_priority() {
+        let mut rules = vec![
+            make_rule("LOW", MatchType::Contains, "cat_low", 10),
+            make_rule("HIGH", MatchType::Contains, "cat_high", 200),
+            make_rule("MID", MatchType::Contains, "cat_mid", 50),
+        ];
+
+        sort_rules_by_priority(&mut rules);
+
+        assert_eq!(rules[0].priority, 200);
+        assert_eq!(rules[1].priority, 50);
+        assert_eq!(rules[2].priority, 10);
+    }
+
+    #[test]
+    fn test_categorize_priority_ordering() {
+        // Even if low priority rule appears first in array, high priority matches first
+        let rules = vec![
+            make_rule("ZOMATO", MatchType::Contains, "food_generic", 10),
+            make_rule("ZOMATO", MatchType::Contains, "dining_premium", 100),
+        ];
+
+        assert_eq!(categorize("ZOMATO ORDER", &rules), "dining_premium");
+    }
+
+    #[test]
     fn test_categorize_first_match_wins() {
         let rules = vec![
             make_rule("ZOMATO", MatchType::Contains, "dining", 100),
@@ -88,5 +152,18 @@ mod tests {
     fn test_categorize_fallback() {
         let rules = vec![make_rule("ZOMATO", MatchType::Contains, "dining", 100)];
         assert_eq!(categorize("UNKNOWN MERCHANT", &rules), "other");
+    }
+
+    #[test]
+    fn test_categorize_with_fallback_custom() {
+        let rules = vec![make_rule("ZOMATO", MatchType::Contains, "dining", 100)];
+        assert_eq!(
+            categorize_with_fallback("UNKNOWN MERCHANT", &rules, "unassigned"),
+            "unassigned"
+        );
+        assert_eq!(
+            categorize_with_fallback("ZOMATO ORDER", &rules, "unassigned"),
+            "dining"
+        );
     }
 }
