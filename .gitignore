@@ -11,3 +11,27 @@ logs/
 .cache/
 .temp/
 .tmp/
+
+# Local generated statement data
+wealthmanager/reports/
+wealthmanager/__pycache__/
+wealthmanager/tests/__pycache__/
+
+wealthmanager/data/
+
+# Private runtime configuration and generated website builds
+.env
+.env.*
+!.env*.example
+*.sqlite
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.db
+wealthfolio/apps/frontend/dist-portal*/
+wealthfolio/apps/frontend/.portal-build-*/
+wealthmanager/*.before-*
+
+graphify-out/
+
+wealthfolio/.superpowers/sdd/reviews/*-diff.patch

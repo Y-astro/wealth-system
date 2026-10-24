@@ -15,7 +15,7 @@
     "dev": "turbo run dev --filter frontend",
     "dev:tauri": "pnpm --filter frontend dev:tauri",
     "dev:addons": "pnpm --filter frontend dev:addons",
-    "dev:web": "dotenv -e .env.web -- concurrently -n \"rust,vite\" -c \"bgBlue.bold,bgMagenta.bold\" \"diesel database setup && cargo watch -w crates -w apps/server -x 'run --manifest-path apps/server/Cargo.toml'\" \"pnpm --filter frontend dev\"",
+    "dev:web": "dotenv -e .env.web -- concurrently -n \"rust,vite\" -c \"bgBlue.bold,bgMagenta.bold\" \"cargo watch -w crates -w apps/server -x 'run --manifest-path apps/server/Cargo.toml'\" \"pnpm --filter frontend dev\"",
     "build": "turbo run build --filter frontend",
     "build:tauri": "turbo run build:tauri --filter frontend",
     "build:types": "turbo run build:types",
@@ -44,7 +44,7 @@
     "publish:addon-dev-tools": "cd packages/addon-dev-tools && npm publish --access public",
     "addon:create": "cd packages/addon-dev-tools && node cli.js create",
     "addon:dev": "cd packages/addon-dev-tools && node dev-server.js",
-    "ingest": "cd ../Wealthmanager && python3 process_all.py",
+    "ingest": "python3 ../wealthmanager/process_all.py",
     "prepare": "husky"
   },
   "devDependencies": {
