@@ -453,10 +453,12 @@ async fn import_statement_endpoint(
     })?;
 
     // 2. Call python script ingest.py to extract text
-    let output = std::process::Command::new("python3")
-        .arg("/home/astro/wealth-system/wealthmanager/ingest.py")
+    let output = tokio::process::Command::new(std::env::var("WEALTH_PYTHON").unwrap_or_else(|_| "python3".into()))
+        .arg(std::env::var_os("WEALTH_INGEST_SCRIPT").map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../wealthmanager/ingest.py")))
         .arg(&temp_filepath)
-        .output();
+        .kill_on_drop(true)
+        .output().await;
         
     // Clean up temporary file immediately
     let _ = std::fs::remove_file(&temp_filepath);
@@ -490,6 +492,12 @@ async fn import_statement_endpoint(
             .unwrap_or_else(|| "0e64c3da-e5f5-4ef9-a5f3-84ebcb6eaa8a".to_string())
     });
 
+    if extracted_text.to_uppercase().contains("YOUR CONSOLIDATED PORTFOLIO VALUE") {
+        return Err(crate::error::ApiError::BadRequest(
+            "NSDL holdings detected. Open Statements to view the portfolio charts and source mappings.".into()
+        ));
+    }
+
     if wealthfolio_core::importers::cams_cas::CamsCasParser::is_cams_kfintech_statement(&extracted_text) {
         let mut activities = wealthfolio_core::importers::cams_cas::CamsCasParser::parse(&extracted_text, &target_account_id).map_err(|e| {
             crate::error::ApiError::Internal(format!("Failed to parse CAMS CAS: {}", e))
@@ -521,181 +529,59 @@ async fn import_statement_endpoint(
         return Ok(Json(activities));
     }
 
-    let accounts_context = accounts
-        .iter()
-        .map(|a| format!("- Name: {}, ID: {}, Currency: {}", a.name, a.id, a.currency))
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    // 4. Query LM Studio for model dynamically
-    let lm_studio_base = std::env::var("LM_STUDIO_BASE").unwrap_or_else(|_| "http://127.0.0.1:1234".to_string());
-    
-    // Resolve model name
-    let client = reqwest::Client::new();
-    let mut active_model = "qwen".to_string();
-    
-    if let Ok(res) = client.get(format!("{}/v1/models", lm_studio_base)).send().await {
-        if let Ok(json_res) = res.json::<serde_json::Value>().await {
-            if let Some(models) = json_res.get("data").and_then(|v| v.as_array()) {
-                for m in models {
-                    if let Some(model_id) = m.get("id").and_then(|v| v.as_str()) {
-                        let lower = model_id.to_lowercase();
-                        if !lower.contains("embed") && !lower.contains("rerank") {
-                            active_model = model_id.to_string();
-                            break;
-                        }
-                    }
+    // 3b. Try Excel parser if statement file is an Excel spreadsheet
+    if extension == "xls" || extension == "xlsx" || extension == "xlsb" || extension == "ods" {
+        if let Ok(tsv) = wealthfolio_core::importers::excel_parser::ExcelStatementParser::convert_excel_to_tsv(&content) {
+            if let Ok(activities) = wealthfolio_core::importers::excel_parser::ExcelStatementParser::parse_excel_tsv(&tsv, &target_account_id) {
+                if !activities.is_empty() {
+                    return Ok(Json(activities));
                 }
             }
         }
     }
 
-    // 5. Construct Chat Prompt
-    let prompt = format!(
-        "You are a financial data extraction expert. Your task is to extract all transactions from the provided bank statement text \
-        into a strict JSON format compatible with Wealthfolio.\n\n\
-        ### Available Wealthfolio Accounts:\n{}\n\n\
-        ### CRITICAL INSTRUCTIONS:\n\
-        1. **CSV/Tabular Structure**: Pay close attention to the column headers (e.g., Date, Narration, Withdrawal, Deposit, Balance).\n   \
-           - **NEVER** use the 'Balance' column as the transaction amount.\n   \
-           - The transaction amount is in either the 'Withdrawal/Debit' or 'Deposit/Credit' column.\n\
-        2. **Mandatory Fields for Activities**:\n   \
-           - `date`: Strict ISO format (YYYY-MM-DD) for all activities.\n   \
-           - `activityType`: MUST be strictly \"DEPOSIT\" or \"WITHDRAWAL\".\n   \
-           - `symbol`: Use the currency code (e.g., \"USD\", \"INR\").\n   \
-           - `quantity`: Always use 1.\n   \
-           - `unitPrice`: The absolute amount of the transaction.\n   \
-           - `currency`: The currency code.\n   \
-           - `comment`: The transaction narration.\n   \
-           - `accountId`: Choose the best matching Account ID from the list above.\n   \
-           - `isDraft`: false.\n   \
-           - `isValid`: true.\n\
-        3. **Balances**: You MUST extract the final closing balance on the statement and include it as `closingBalance` (number) and `closingBalanceDate` (YYYY-MM-DD string).\n   \
-           - Also extract the starting balance as `openingBalance` (number) and `openingBalanceDate` (YYYY-MM-DD string) if present.\n\n\
-        ### EXPECTED JSON SCHEMA:\n\
-        {{\n  \
-          \"openingBalance\": 1000.00,\n  \
-          \"openingBalanceDate\": \"YYYY-MM-DD\",\n  \
-          \"closingBalance\": 12345.67,\n  \
-          \"closingBalanceDate\": \"YYYY-MM-DD\",\n  \
-          \"activities\": [\n    \
-            {{\n      \
-              \"date\": \"YYYY-MM-DD\",\n      \
-              \"activityType\": \"DEPOSIT|WITHDRAWAL\",\n      \
-              \"symbol\": \"USD\",\n      \
-              \"quantity\": 1,\n      \
-              \"unitPrice\": 123.45,\n      \
-              \"currency\": \"USD\",\n      \
-              \"comment\": \"Narration\",\n      \
-              \"accountId\": \"UUID\",\n      \
-              \"isDraft\": false,\n      \
-              \"isValid\": true\n    \
-            }}\n  \
-          ]\n\
-        }}\n\n\
-        Return ONLY the JSON object. No preamble.",
-        accounts_context
-    );
-
-    let payload = serde_json::json!({
-        "model": active_model,
-        "messages": [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": extracted_text}
-        ],
-        "temperature": 0.0
-    });
-
-    let mut content_opt = None;
-
-    let llm_res_result = client
-        .post(format!("{}/v1/chat/completions", lm_studio_base))
-        .json(&payload)
-        .send()
-        .await;
-
-    if let Ok(llm_res) = llm_res_result {
-        if llm_res.status().is_success() {
-            if let Ok(llm_json) = llm_res.json::<serde_json::Value>().await {
-                if let Some(c) = llm_json
-                    .get("choices")
-                    .and_then(|c| c.as_array())
-                    .and_then(|a| a.first())
-                    .and_then(|m| m.get("message"))
-                    .and_then(|msg| msg.get("content"))
-                    .and_then(|c| c.as_str())
-                {
-                    content_opt = Some(c.trim().to_string());
-                }
-            }
+    // 3c. Try Credit Card CSV parser
+    if let Ok(activities) = wealthfolio_core::importers::credit_card::CreditCardParser::parse(&extracted_text, &target_account_id) {
+        if !activities.is_empty() {
+            return Ok(Json(activities));
         }
     }
 
-    // Fallback to Gemini if LM Studio failed or was unreachable
-    if content_opt.is_none() {
-        if let Ok(api_key) = std::env::var("GEMINI_API_KEY") {
-            let gemini_url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={}", api_key);
-            let gemini_payload = serde_json::json!({
-                "system_instruction": {
-                    "parts": [{"text": prompt}]
-                },
-                "contents": [
-                    {
-                        "parts": [
-                            {"text": extracted_text}
-                        ]
-                    }
-                ],
-                "generationConfig": {
-                    "temperature": 0.0,
-                    "response_mime_type": "application/json"
-                }
-            });
-
-            if let Ok(gemini_res) = client.post(&gemini_url).json(&gemini_payload).send().await {
-                if gemini_res.status().is_success() {
-                    if let Ok(gemini_json) = gemini_res.json::<serde_json::Value>().await {
-                        if let Some(c) = gemini_json
-                            .get("candidates")
-                            .and_then(|c| c.as_array())
-                            .and_then(|a| a.first())
-                            .and_then(|c| c.get("content"))
-                            .and_then(|c| c.get("parts"))
-                            .and_then(|p| p.as_array())
-                            .and_then(|a| a.first())
-                            .and_then(|p| p.get("text"))
-                            .and_then(|t| t.as_str())
-                        {
-                            content_opt = Some(c.trim().to_string());
-                        }
-                    }
-                }
-            }
-        }
+    // Use the same validated local extraction contract as the Statements dashboard.
+    // Native LM Studio discovery selects a loaded instance; no model-name or cloud fallback.
+    let report = super::statements::run_analyzer(serde_json::json!({
+        "text": extracted_text,
+        "filename": filename,
+        "useAi": true
+    })).await?;
+    if report["kind"] != "bank" {
+        return Err(crate::error::ApiError::BadRequest(
+            "This is an investment holdings statement. Open Statements to visualize holdings and source mappings; holdings are not cash transactions.".into()
+        ));
     }
-
-    let content = content_opt.ok_or_else(|| {
-        crate::error::ApiError::Internal("Failed to get a response from LM Studio and Gemini fallback".to_string())
-    })?;
-
-    // Clean JSON content by slicing block boundaries
-    let clean_json = if let Some(start_idx) = content.find('{').or_else(|| content.find('[')) {
-        if let Some(end_idx) = content.rfind('}').or_else(|| content.rfind(']')) {
-            if end_idx >= start_idx {
-                content[start_idx..=end_idx].to_string()
-            } else {
-                content.to_string()
-            }
-        } else {
-            content.to_string()
-        }
-    } else {
-        content.to_string()
-    };
-
-    let llm_output: LlmOutput = serde_json::from_str(&clean_json).map_err(|e| {
-        crate::error::ApiError::Internal(format!("Failed to parse AI output into strict schema: {}. Raw output: {}", e, content))
-    })?;
+    if report["warnings"].as_array().is_some_and(|warnings| warnings.iter().any(|w| w.as_str().is_some_and(|w| w.contains("excluded")))) {
+        return Err(crate::error::ApiError::BadRequest(
+            "Some statement rows could not be mapped. Open Statements and review the source mappings before importing.".into()
+        ));
+    }
+    let activities = report["transactions"].as_array().ok_or_else(|| {
+        crate::error::ApiError::Internal("Statement report is missing transactions.".into())
+    })?.iter().map(|transaction| serde_json::json!({
+        "date": transaction["date"],
+        "activityType": if transaction["direction"] == "in" { "DEPOSIT" } else { "WITHDRAWAL" },
+        "symbol": transaction["currency"],
+        "quantity": 1,
+        "unitPrice": transaction["amount"],
+        "currency": transaction["currency"],
+        "comment": transaction["description"]
+    })).collect::<Vec<_>>();
+    let llm_output: LlmOutput = serde_json::from_value(serde_json::json!({
+        "openingBalance": report["summary"]["openingBalance"],
+        "openingBalanceDate": report["period"]["from"],
+        "closingBalance": report["summary"]["closingBalance"],
+        "closingBalanceDate": report["period"]["to"],
+        "activities": activities
+    })).map_err(|_| crate::error::ApiError::Internal("Invalid bank report contract.".into()))?;
 
     // 6. Map parsed activities to ActivityImport structure
     let mut import_activities = Vec::new();
@@ -751,22 +637,6 @@ async fn import_statement_endpoint(
         net_change,
         &target_account_id,
     );
-
-    // 8. Save template signature for future matches
-    let new_template = wealthfolio_core::activities::ImportTemplateData {
-        id: format!("tmpl-{}", uuid::Uuid::new_v4()),
-        name: "Auto AI Template".to_string(),
-        scope: wealthfolio_core::activities::ImportTemplateScope::User,
-        kind: wealthfolio_core::activities::TemplateKind::CsvActivity,
-        field_mappings: Default::default(),
-        activity_mappings: Default::default(),
-        symbol_mappings: Default::default(),
-        account_mappings: Default::default(),
-        symbol_mapping_meta: Default::default(),
-        parse_config: None,
-        template_signature: Some(engine.extract_signature(&extracted_text)),
-    };
-    let _ = state.activity_service.save_import_template(new_template).await;
 
     Ok(Json(import_activities))
 }

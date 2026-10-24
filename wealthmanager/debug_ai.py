@@ -1,19 +1,11 @@
+"""Inspect whichever chat model is currently loaded; no hardcoded model IDs."""
 import json
-import urllib.request
+from local_ai import discover_model, request_json
 
-LM_STUDIO_URL = "http://127.0.0.1:1234/v1/chat/completions"
-payload = {
-    "model": "qwen/qwen3.5-9b",
-    "messages": [
-        {"role": "system", "content": "Return the word 'TEST'"},
-        {"role": "user", "content": "Hello"}
-    ],
-    "temperature": 0.0
-}
-
-try:
-    req = urllib.request.Request(LM_STUDIO_URL, data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
-    with urllib.request.urlopen(req) as response:
-        print(response.read().decode('utf-8'))
-except Exception as e:
-    print(f"Error: {e}")
+if __name__ == "__main__":
+    model = discover_model()
+    response = request_json("/v1/chat/completions", {
+        "model": model["id"], "temperature": 0, "max_tokens": 32,
+        "messages": [{"role": "user", "content": "Return only the word TEST."}],
+    }, timeout=60)
+    print(json.dumps({"model": model["id"], "choices": response.get("choices", [])}, indent=2))

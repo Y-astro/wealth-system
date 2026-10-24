@@ -43,6 +43,7 @@ mod performance;
 mod portfolio;
 mod secrets;
 mod settings;
+mod statements;
 pub mod shared;
 #[cfg(feature = "device-sync")]
 mod sync_crypto;
@@ -89,6 +90,7 @@ pub fn app_router(state: Arc<AppState>, config: &Config) -> Router {
     let mut protected_api = Router::new()
         .merge(accounts::router())
         .merge(settings::router())
+        .merge(statements::router())
         .merge(portfolio::router())
         .merge(holdings::router())
         .merge(performance::router())
