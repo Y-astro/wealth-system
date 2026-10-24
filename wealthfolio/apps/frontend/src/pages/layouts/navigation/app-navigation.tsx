@@ -40,11 +40,11 @@ const staticNavigation: NavigationProps = {
       label: "View Holdings",
     },
     {
-      icon: <Icons.Activity className="size-6" />,
-      title: "Activities",
-      href: "/activities",
-      keywords: ["transactions", "trades", "history"],
-      label: "View Activities",
+      icon: <Icons.Insight className="size-6" />,
+      title: "Statements",
+      href: "/statements",
+      keywords: ["NSDL", "statement", "bank", "sankey", "cash flow"],
+      label: "Explore Statements",
     },
     // {
     //   icon: <Icons.Target className="size-6" />,

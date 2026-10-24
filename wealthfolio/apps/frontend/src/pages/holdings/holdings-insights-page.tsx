@@ -120,12 +120,12 @@ export const HoldingsInsightsPage = ({ accountId: accountIdProp }: HoldingsInsig
       <EmptyPlaceholder
         icon={<Icons.TrendingUp className="text-muted-foreground h-10 w-10" />}
         title="No holdings yet"
-        description="Get started by adding your first transaction or quickly import your existing holdings from a CSV file."
+        description="Explore holdings from your saved statements, or import portfolio holdings from a CSV file."
       >
         <div className="flex flex-col items-center gap-3 sm:flex-row">
-          <Button size="default" onClick={() => navigate("/activities/manage")}>
+          <Button size="default" onClick={() => navigate("/statements")}>
             <Icons.Plus className="mr-2 h-4 w-4" />
-            Add Transaction
+            Upload Statements
           </Button>
           <Button size="default" variant="outline" onClick={() => navigate("/import")}>
             <Icons.Import className="mr-2 h-4 w-4" />

@@ -56,8 +56,8 @@ export function DashboardActions({ onAddAsset, onAddLiability }: DashboardAction
         : [
             {
               icon: Icons.Plus,
-              label: "Record Transaction",
-              onClick: () => navigate("/activities/manage"),
+              label: "Upload Statements",
+              onClick: () => navigate("/statements"),
             },
           ];
 

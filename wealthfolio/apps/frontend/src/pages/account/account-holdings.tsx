@@ -130,16 +130,9 @@ const AccountHoldings = ({
           description="Get started by adding your first transaction or quickly import your existing holdings from a CSV file."
         >
           <div className="flex flex-col items-center gap-3 sm:flex-row">
-            <Button
-              size="default"
-              onClick={() =>
-                navigate(
-                  `/activities/manage?account=${accountId}&redirect-to=/accounts/${accountId}`,
-                )
-              }
-            >
+            <Button size="default" onClick={() => navigate("/statements")}>
               <Icons.Plus className="mr-2 h-4 w-4" />
-              Add Transaction
+              Upload Statements
             </Button>
             <Button
               size="default"

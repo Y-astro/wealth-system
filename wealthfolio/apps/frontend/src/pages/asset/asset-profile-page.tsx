@@ -938,37 +938,12 @@ export const AssetProfilePage = () => {
                     ] satisfies ActionPaletteGroup[])
                   : ([
                       {
-                        title: "Record Transaction",
+                        title: "Statement Data",
                         items: [
                           {
-                            icon: Icons.TrendingUp,
-                            label: "Buy",
-                            onClick: () =>
-                              navigate(
-                                `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=BUY`,
-                              ),
-                          },
-                          {
-                            icon: Icons.TrendingDown,
-                            label: "Sell",
-                            onClick: () =>
-                              navigate(
-                                `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=SELL`,
-                              ),
-                          },
-                          {
-                            icon: Icons.Coins,
-                            label: "Dividend",
-                            onClick: () =>
-                              navigate(
-                                `/activities/manage?assetId=${encodeURIComponent(assetId)}&type=DIVIDEND`,
-                              ),
-                          },
-                          {
-                            icon: Icons.Ellipsis,
-                            label: "Other",
-                            onClick: () =>
-                              navigate(`/activities/manage?assetId=${encodeURIComponent(assetId)}`),
+                            icon: Icons.Import,
+                            label: "Upload Statements",
+                            onClick: () => navigate("/statements"),
                           },
                           ...(isExpiredOption
                             ? [

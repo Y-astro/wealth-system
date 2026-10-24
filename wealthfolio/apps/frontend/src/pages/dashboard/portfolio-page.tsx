@@ -10,6 +10,7 @@ import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { NetWorthContent } from "../net-worth/net-worth-content";
 import { DashboardActions } from "./dashboard-actions";
+import { StatementBalancesDashboard } from "@/features/statements/statement-balances-dashboard";
 import { DashboardContent } from "./dashboard-content";
 
 // Loading skeleton
@@ -97,6 +98,13 @@ export default function PortfolioPage() {
   const views: SwipablePageView[] = useMemo(
     () => [
       {
+        value: "statements",
+        label: "Statements",
+        icon: Icons.Wallet,
+        content: <StatementBalancesDashboard />,
+        actions: commonActions,
+      },
+      {
         value: "investments",
         label: "Investments",
         icon: Icons.TrendingUp,
@@ -124,7 +132,7 @@ export default function PortfolioPage() {
 
   return (
     <>
-      <SwipablePage className="pt-0" views={views} defaultView="investments" withPadding={false} />
+      <SwipablePage className="pt-0" views={views} defaultView="statements" withPadding={false} />
       <AlternativeAssetQuickAddModal
         open={isQuickAddOpen}
         onOpenChange={(open) => {

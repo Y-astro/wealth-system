@@ -358,7 +358,7 @@ export const HoldingsPage = () => {
             description={
               canEditHoldings
                 ? "Get started by updating your holdings or importing from a CSV file."
-                : "Get started by adding your first transaction or quickly import your existing holdings from a CSV file."
+                : "Explore holdings from your saved statements, or import portfolio holdings from a CSV file."
             }
           >
             <div className="flex flex-col items-center gap-3 sm:flex-row">
@@ -375,9 +375,9 @@ export const HoldingsPage = () => {
                 </>
               ) : (
                 <>
-                  <Button size="default" onClick={() => navigate("/activities/manage")}>
+                  <Button size="default" onClick={() => navigate("/statements")}>
                     <Icons.Plus className="mr-2 h-4 w-4" />
-                    Add Transaction
+                    Upload Statements
                   </Button>
                   <Button size="default" variant="outline" onClick={() => navigate("/import")}>
                     <Icons.Import className="mr-2 h-4 w-4" />
@@ -544,8 +544,8 @@ export const HoldingsPage = () => {
           },
           {
             icon: Icons.Plus,
-            label: "Add Activity",
-            onClick: () => navigate("/activities/manage"),
+            label: "Upload Statements",
+            onClick: () => navigate("/statements"),
           },
           {
             icon: Icons.Refresh,

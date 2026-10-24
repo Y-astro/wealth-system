@@ -226,7 +226,7 @@ function SyncRunItem({ run }: { run: ImportRun }) {
               {run.warnings?.length} warning{run.warnings && run.warnings.length !== 1 ? "s" : ""}
             </p>
             <Link
-              to={`/activities?account=${run.accountId}&needsReview=true`}
+              to={`/accounts/${encodeURIComponent(run.accountId)}`}
               className="text-primary flex items-center gap-1 text-xs hover:underline"
             >
               Review

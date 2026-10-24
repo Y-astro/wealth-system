@@ -148,10 +148,10 @@ function ImportRunItem({ run }: { run: ImportRun }) {
                   )}
                 </ul>
                 <Link
-                  to={`/activities?account=${run.accountId}`}
+                  to={`/accounts/${encodeURIComponent(run.accountId)}`}
                   className="text-primary mt-2 inline-flex items-center gap-1 text-sm hover:underline"
                 >
-                  Review activities
+                  View account
                   <Icons.ArrowRight className="h-3 w-3" />
                 </Link>
               </div>

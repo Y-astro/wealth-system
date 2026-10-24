@@ -721,7 +721,7 @@ function SyncHistoryItem({
       </div>
       {needsAttention && (
         <Link
-          to={`/activities?account=${run.accountId}&needsReview=true`}
+          to={`/accounts/${encodeURIComponent(run.accountId)}`}
           className="text-primary shrink-0 text-sm font-medium hover:underline"
         >
           Review

@@ -344,7 +344,7 @@ interface SuccessStateProps {
   currency: string;
 }
 
-function SuccessState({ draft, createdActivityId, currency }: SuccessStateProps) {
+function SuccessState({ draft, currency }: SuccessStateProps) {
   const { isBalanceHidden } = useBalancePrivacy();
 
   const formatAmount = useCallback(
@@ -408,9 +408,15 @@ function SuccessState({ draft, createdActivityId, currency }: SuccessStateProps)
         </div>
         <div className="pt-2">
           <Button variant="outline" size="sm" asChild>
-            <Link to={createdActivityId ? `/activities?id=${createdActivityId}` : "/activities"}>
+            <Link
+              to={
+                draft.accountId
+                  ? `/accounts/${encodeURIComponent(draft.accountId)}`
+                  : "/settings/accounts"
+              }
+            >
               <Icons.ArrowRight className="mr-2 h-4 w-4" />
-              View in Activities
+              View account
             </Link>
           </Button>
         </div>

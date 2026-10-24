@@ -1,5 +1,5 @@
-import { Suspense, useEffect, useState } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "@/pages/layouts/app-layout";
 import { OnboardingLayout } from "@/pages/layouts/onboarding-layout";
@@ -8,8 +8,6 @@ import SettingsLayout from "@/pages/settings/settings-layout";
 import { getDynamicRoutes, subscribeToNavigationUpdates } from "@/addons/addons-runtime-context";
 import AuthCallbackPage from "@/features/wealthfolio-connect/pages/auth-callback-page";
 import ConnectPage from "@/features/wealthfolio-connect/pages/connect-page";
-import ActivityManagerPage from "@/pages/activity/activity-manager-page";
-import ActivityPage from "@/pages/activity/activity-page";
 import ActivityImportPage from "@/pages/activity/import/activity-import-page";
 import AssetsPage from "@/pages/asset/assets-page";
 import PortfolioPage from "@/pages/dashboard/portfolio-page";
@@ -40,6 +38,8 @@ import ConnectSettingsPage from "./pages/settings/wealthfolio-connect/connect-se
 import FirePlannerPage from "./pages/fire-planner/fire-planner-page";
 import FirePlannerSettingsPage from "./pages/settings/fire-planner/fire-planner-settings-page";
 
+const StatementsPage = lazy(() => import("./pages/statements/statements-page"));
+
 export function AppRoutes() {
   const [dynamicRoutes, setDynamicRoutes] = useState<
     { path: string; component: React.LazyExoticComponent<React.ComponentType<unknown>> }[]
@@ -63,7 +63,7 @@ export function AppRoutes() {
   }, []);
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         {/* QR Scanner - No layout for fullscreen camera access */}
         {/* <Route path="/qr-scanner" element={<QRScannerPage />} /> */}
@@ -80,14 +80,21 @@ export function AppRoutes() {
         <Route path="/" element={<AppLayout />}>
           <Route index element={<PortfolioPage />} />
           <Route path="dashboard" element={<PortfolioPage />} />
-          <Route path="activities" element={<ActivityPage />} />
-          <Route path="activities/manage" element={<ActivityManagerPage />} />
+          <Route path="activities/*" element={<Navigate to="/statements" replace />} />
           <Route path="holdings" element={<HoldingsPage />} />
           <Route path="holdings-insights" element={<HoldingsInsightsPage />} />
           <Route path="holdings/:assetId" element={<AssetProfilePage />} />
           <Route path="import" element={<ActivityImportPage />} />
           <Route path="accounts/:id" element={<AccountPage />} />
           <Route path="income" element={<IncomePage />} />
+          <Route
+            path="statements"
+            element={
+              <Suspense fallback={<div className="p-6">Loading statements…</div>}>
+                <StatementsPage />
+              </Suspense>
+            }
+          />
           <Route path="performance" element={<PerformancePage />} />
           <Route path="insights" element={<PortfolioInsightsPage />} />
           <Route path="health" element={<HealthPage />} />

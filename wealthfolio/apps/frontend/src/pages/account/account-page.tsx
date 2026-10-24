@@ -345,8 +345,8 @@ const AccountPage = () => {
                       items: [
                         {
                           icon: Icons.Plus,
-                          label: "Record Transaction",
-                          onClick: () => navigate(`/activities/manage?account=${id}`),
+                          label: "Upload Statements",
+                          onClick: () => navigate("/statements"),
                         },
                         ...(isHoldingsMode
                           ? []

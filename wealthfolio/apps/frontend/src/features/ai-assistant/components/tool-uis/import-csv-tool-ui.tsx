@@ -347,9 +347,13 @@ function SuccessState({ activityCount }: SuccessStateProps) {
           Successfully imported <span className="text-foreground font-medium">{activityCount}</span>{" "}
           activities.
         </p>
-        <Button variant="outline" size="sm" onClick={() => window.open("/activities", "_blank")}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open("/settings/accounts", "_blank")}
+        >
           <Icons.ExternalLink className="mr-2 h-4 w-4" />
-          View Activities
+          View Accounts
         </Button>
       </CardContent>
     </Card>
@@ -854,11 +858,7 @@ function AbstainState({ globalErrors }: AbstainStateProps) {
             ))}
           </ul>
         )}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => window.open("/activities/import", "_blank")}
-        >
+        <Button variant="outline" size="sm" onClick={() => window.open("/import", "_blank")}>
           <Icons.ExternalLink className="mr-2 h-4 w-4" />
           Use Manual Import
         </Button>

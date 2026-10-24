@@ -109,7 +109,7 @@ export function ContextResultStep() {
     if (isHoldingsMode) {
       navigate(accountId ? `/holdings?account=${accountId}` : "/holdings");
     } else {
-      navigate(accountId ? `/activities?account=${accountId}` : "/activities");
+      navigate(accountId ? `/accounts/${encodeURIComponent(accountId)}` : "/dashboard");
     }
   };
 
@@ -222,7 +222,7 @@ export function ContextResultStep() {
         </Button>
 
         <Button size="lg" onClick={handleViewResult}>
-          {isHoldingsMode ? "View Holdings" : "View Activities"}
+          {isHoldingsMode ? "View Holdings" : "View Account"}
           <Icons.ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </motion.div>

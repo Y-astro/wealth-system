@@ -187,10 +187,10 @@ function TopHoldingsEmptyState() {
             <div className="text-center">
               <p className="text-sm">No holdings yet.</p>
               <Link
-                to="/activities/manage"
+                to="/statements"
                 className="text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
               >
-                Add your first transaction
+                View statement holdings
                 <Icons.ChevronRight className="h-3 w-3" />
               </Link>
             </div>
