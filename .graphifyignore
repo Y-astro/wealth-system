@@ -1,0 +1,8 @@
+**/ticker-logos/**
+**/ticker-logos/**
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.webp
+*.ico
