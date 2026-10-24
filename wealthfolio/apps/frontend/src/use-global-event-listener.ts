@@ -321,7 +321,6 @@ const useGlobalEventListener = () => {
         updatePortfolio().catch((error) => {
           logger.error("Failed to trigger initial portfolio update: " + String(error));
         });
-        // Note: Update check is now handled by useCheckUpdateOnStartup query in UpdateDialog
       }
     };
 

@@ -23,9 +23,7 @@ export const COMMANDS: CommandMap = {
   delete_account: { method: "DELETE", path: "/accounts" },
   get_settings: { method: "GET", path: "/settings" },
   update_settings: { method: "PUT", path: "/settings" },
-  is_auto_update_check_enabled: { method: "GET", path: "/settings/auto-update-enabled" },
   get_app_info: { method: "GET", path: "/app/info" },
-  check_update: { method: "GET", path: "/app/check-update" },
   backup_database: { method: "POST", path: "/utilities/database/backup" },
   backup_database_to_path: { method: "POST", path: "/utilities/database/backup-to-path" },
   restore_database: { method: "POST", path: "/utilities/database/restore" },
@@ -496,22 +494,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       body = JSON.stringify({ itemType, itemId, startDate, endDate, trackingMode });
       break;
     }
-    case "check_update": {
-      const { currentVersion, target, arch, force } = (payload ?? {}) as {
-        currentVersion?: string;
-        target?: string;
-        arch?: string;
-        force?: boolean;
-      };
-      const params = new URLSearchParams();
-      if (currentVersion) params.set("currentVersion", currentVersion);
-      if (target) params.set("target", target);
-      if (arch) params.set("arch", arch);
-      if (force) params.set("force", "true");
-      const qs = params.toString();
-      if (qs) url += `?${qs}`;
-      break;
-    }
+
     case "get_income_summary": {
       const { accountId: incomeAccountId } = payload as { accountId?: string };
       if (incomeAccountId) {

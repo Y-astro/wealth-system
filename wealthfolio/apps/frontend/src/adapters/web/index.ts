@@ -337,12 +337,9 @@ export {
 export {
   backupDatabase,
   backupDatabaseToPath,
-  checkForUpdates,
   getAppInfo,
   getPlatform,
   getSettings,
-  installUpdate,
-  isAutoUpdateCheckEnabled,
   restoreDatabase,
   updateSettings,
 } from "./settings";

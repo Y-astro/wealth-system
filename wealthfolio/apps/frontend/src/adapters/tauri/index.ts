@@ -120,13 +120,10 @@ export * from "../shared/health";
 export {
   getSettings,
   updateSettings,
-  isAutoUpdateCheckEnabled,
   backupDatabase,
   backupDatabaseToPath,
   restoreDatabase,
   getAppInfo,
-  checkForUpdates,
-  installUpdate,
   getPlatform,
 } from "./settings";
 

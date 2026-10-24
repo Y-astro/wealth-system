@@ -157,41 +157,6 @@ export function AppLauncher() {
 
   // Combine navigation items with additional quick actions
   const actionItems = useMemo<LauncherActionItem[]>(() => {
-    // Build smart URL with context awareness and optional activity type
-    const buildTransactionUrl = (activityType?: string) => {
-      const path = location.pathname;
-      const params = new URLSearchParams();
-
-      // Add activity type if provided
-      if (activityType) {
-        params.set("type", activityType);
-      }
-
-      // Check if on account page: /accounts/:id
-      const accountRegex = /^\/accounts\/([^/]+)$/;
-      const accountMatch = accountRegex.exec(path);
-      if (accountMatch) {
-        const accountId = accountMatch[1];
-        params.set("account", accountId);
-        params.set("redirect-to", path);
-      }
-
-      // Check if on asset profile page: /holdings/:assetId (only for trade activities)
-      if (!activityType || ["BUY", "SELL"].includes(activityType)) {
-        const assetRegex = /^\/holdings\/([^/]+)$/;
-        const assetMatch = assetRegex.exec(path);
-        if (assetMatch) {
-          const assetId = decodeURIComponent(assetMatch[1]);
-          params.set("assetId", assetId);
-          if (!params.has("redirect-to")) {
-            params.set("redirect-to", path);
-          }
-        }
-      }
-
-      return `/activities/manage${params.toString() ? `?${params.toString()}` : ""}`;
-    };
-
     // Additional quick actions not in main navigation
     const quickActions: LauncherActionItem[] = [
       // Navigation mode switch and focus mode are desktop-only
@@ -274,67 +239,11 @@ export function AppLauncher() {
         disabled: isRecalculatingPortfolio,
       },
       {
-        title: "Record Buy",
-        href: buildTransactionUrl("BUY"),
-        icon: <Icons.Plus className="size-6" />,
-        keywords: ["buy", "purchase", "trade", "stock", "shares", "record"],
-        label: "Record Buy",
-      },
-      {
-        title: "Record Sell",
-        href: buildTransactionUrl("SELL"),
-        icon: <Icons.TrendingDown className="size-6" />,
-        keywords: ["sell", "sale", "trade", "stock", "shares", "record"],
-        label: "Record Sell",
-      },
-      {
-        title: "Record Dividend",
-        href: buildTransactionUrl("DIVIDEND"),
-        icon: <Icons.Income className="size-6" />,
-        keywords: ["dividend", "income", "payout", "distribution", "record"],
-        label: "Record Dividend",
-      },
-      {
-        title: "Record Deposit",
-        href: buildTransactionUrl("DEPOSIT"),
-        icon: <Icons.DollarSign className="size-6" />,
-        keywords: ["deposit", "add", "money", "cash", "fund", "record"],
-        label: "Record Deposit",
-      },
-      {
-        title: "Record Withdrawal",
-        href: buildTransactionUrl("WITHDRAWAL"),
-        icon: <Icons.ArrowDown className="size-6" />,
-        keywords: ["withdrawal", "withdraw", "money", "cash", "take out", "record"],
-        label: "Record Withdrawal",
-      },
-      {
-        title: "Add Holding",
-        href: "/activities/add?tab=holdings",
-        icon: <Icons.Wallet className="size-6" />,
-        keywords: ["holding", "add", "position", "import", "record"],
-        label: "Add Holding",
-      },
-      {
-        title: "Record Interest",
-        href: buildTransactionUrl("INTEREST"),
-        icon: <Icons.Percent className="size-6" />,
-        keywords: ["interest", "income", "earned", "bank", "record"],
-        label: "Record Interest",
-      },
-      {
-        title: "Add Transaction",
-        href: buildTransactionUrl(),
-        icon: <Icons.Activity className="size-6" />,
-        keywords: ["add", "new", "create", "transaction", "activity", "any"],
-        label: "Add Transaction",
-      },
-      {
-        title: "Import Activities",
-        href: "/import",
+        title: "Upload Statements",
+        href: "/statements",
         icon: <Icons.Import className="size-6" />,
         keywords: ["import", "csv", "upload", "file", "bulk"],
-        label: "Import Activities",
+        label: "Upload Statements",
       },
       {
         title: "Manage Securities",

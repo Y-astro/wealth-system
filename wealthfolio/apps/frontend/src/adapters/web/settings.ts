@@ -1,7 +1,7 @@
-// Web adapter - Settings, App Info, Updater Commands
+// Web adapter - Settings and App Info
 
 import { invoke, logger } from "./core";
-import type { Settings, UpdateInfo } from "@/lib/types";
+import type { Settings } from "@/lib/types";
 import type { AppInfo, PlatformInfo } from "../types";
 
 // ============================================================================
@@ -23,15 +23,6 @@ export const updateSettings = async (settingsUpdate: Partial<Settings>): Promise
   } catch (error) {
     logger.error("Error updating settings.");
     throw error;
-  }
-};
-
-export const isAutoUpdateCheckEnabled = async (): Promise<boolean> => {
-  try {
-    return await invoke<boolean>("is_auto_update_check_enabled");
-  } catch (_error) {
-    logger.error("Error checking auto-update setting.");
-    return true; // Default to enabled
   }
 };
 
@@ -79,55 +70,6 @@ export const getAppInfo = async (): Promise<AppInfo> => {
       logsDir: "",
     };
   }
-};
-
-// ============================================================================
-// Updater Commands
-// ============================================================================
-
-/** Web API response shape */
-interface WebUpdateCheckResponse {
-  updateAvailable: boolean;
-  latestVersion: string;
-  notes?: string;
-  pubDate?: string;
-  downloadUrl?: string;
-  changelogUrl?: string;
-  screenshots?: string[];
-}
-
-/**
- * Check for updates. Returns update info if available, null if up-to-date.
- * Web implementation uses REST API.
- */
-export const checkForUpdates = async (options?: {
-  force?: boolean;
-}): Promise<UpdateInfo | null> => {
-  const response = await invoke<WebUpdateCheckResponse>("check_update", {
-    ...(options?.force ? { force: true } : {}),
-  });
-  if (!response?.updateAvailable) {
-    return null;
-  }
-  // Convert web response to UpdateInfo shape
-  return {
-    currentVersion: "",
-    latestVersion: response.latestVersion,
-    notes: response.notes,
-    pubDate: response.pubDate,
-    isAppStoreBuild: false,
-    storeUrl: response.downloadUrl,
-    changelogUrl: response.changelogUrl,
-    screenshots: response.screenshots,
-  };
-};
-
-/**
- * Download and install an available update.
- * Not supported in web - users update via Docker/manual download.
- */
-export const installUpdate = (): Promise<void> => {
-  return Promise.reject(new Error("Updates can only be installed on the desktop client"));
 };
 
 // ============================================================================
