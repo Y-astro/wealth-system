@@ -1,45 +1,48 @@
-# Wealthmanager: Extraction Layer (Layer 2) Instructions
+# Wealth system: local statement processing
 
-After running the Ingestion Layer (`ingest.py`), you will have raw text or CSV data. Follow these steps to process it with Qwen via LM Studio.
+Upload PDF, Excel, CSV, Markdown, text, or an exported report from the Statements
+page. Originals, converted Markdown, reports, and review edits persist in the
+laptop's statement library across browser sessions. Duplicate file contents reuse
+saved conversion/results. Retry a failed item from its saved original.
 
-## 1. Prerequisites
-Ensure LM Studio is running and the **Qwen** model is loaded. 
-Enable the **Local Server** (usually on `http://localhost:1234`).
+PDF conversion uses the installed MarkItDown command. Native table/CSV parsers run
+before local AI; unsupported bank layouts use the laptop's local model. Large
+statements use bounded chunks and resumable extraction checkpoints. The upload
+limit is 50 MB. Model context is bounded and managed models are unloaded after
+processing to release RAM.
 
-## 2. API Payload Construction
-LM Studio provides an OpenAI-compatible API. Your orchestrator (n8n or a script) should send a `POST` request to:
-`http://localhost:1234/v1/chat/completions`
+Bank cash flows and investment/NSDL snapshots are separate. The combined bank
+Sankey supports filters and category drill-down. Credit-card filenames containing
+a CC token are treated as card statements: refunds and fuel surcharge reversals
+reduce expenses, repayments are transfers, and the report shows payment coverage.
+Statement balance history is available on the dashboard.
 
-### Payload Structure:
-```json
-{
-  "model": "qwen",
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are a financial data extraction expert. Extract all transactions from the provided bank statement text into a strict JSON format compatible with Wealthfolio. \n\nExpected JSON Schema:\n{\n  \"activities\": [\n    {\n      \"date\": \"YYYY-MM-DD\",\n      \"type\": \"BUY|SELL|DIVIDEND|DEPOSIT|WITHDRAWAL|FEE|TAX\",\n      \"symbol\": \"USD\", \n      \"quantity\": 1,\n      \"price\": 123.45,\n      \"currency\": \"USD\",\n      \"fee\": 0,\n      \"note\": \"Transaction Description\"\n    }\n  ]\n}\nEnsure dates are in ISO format and amounts are numbers."
-    },
-    {
-      "role": "user",
-      "content": "EXTRACTED_TEXT_FROM_INGEST_PY"
-    }
-  ],
-  "temperature": 0.0,
-  "response_format": { "type": "json_object" }
-}
+## Website controls
+
+```sh
+wf-start           # Backend and access through the Redmi
+wf-start --local   # Also serve the same production website at localhost:1420
+wf-start--local    # Equivalent shortcut
+wf-stop            # Stop the backend and both website entry points
 ```
 
-## 3. Formatting Python Output for the API
-When calling `ingest.py` from n8n or another tool:
-1. Capture `stdout`.
-2. Escape the `stdout` string to be valid JSON (handles newlines and quotes).
-3. Replace `EXTRACTED_TEXT_FROM_INGEST_PY` in the payload above with this escaped string.
+The Redmi relays authenticated HTTPS traffic. All statement data, AI processing,
+and the separate password hash stay on the laptop. Both admin and family portal
+accounts can open Wealthfolio, and must enter its separate password. The optional
+loopback website also requires that password.
 
-## 4. Wealthfolio Integration
-Wealthfolio expects a JSON file for import. Once you receive the JSON response from LM Studio:
-1. Parse the `choices[0].message.content`.
-2. Save it as `import.json`.
-3. In Wealthfolio UI, navigate to **Activities -> Import** and upload the generated JSON.
+See [WEB_PORTAL.md](WEB_PORTAL.md) for installation, certificates, service status,
+shared production builds, the router reservation, and deployment instructions.
 
-## 5. Local Optimization (RTX 5060)
-Since you have an RTX 5060, ensure LM Studio is configured to use **GPU Offloading** (set GPU Layers to Max) for Qwen. This will make the extraction layer significantly faster during the hackathon.
+## Tests and storage
+
+```sh
+cd /home/astro/wealth-system/wealthmanager
+PYTHONPATH=.:tests python3 -m unittest discover -v -s tests
+node portal-bootstrap.test.mjs
+```
+
+Tests use fictional statements and temporary databases. Private originals,
+Markdown, reports, checkpoints, password hashes and backend configuration live
+under `wealthmanager/data/` and are excluded from Git. GitHub backs up code only;
+restoring the repository does not restore the financial library.
